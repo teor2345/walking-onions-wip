@@ -1,0 +1,11 @@
+
+
+  timestamp ? -- could move to root.
+  identity key(s)/fingerprint(s)
+  link specifiers
+  onion key(s)
+  index entry
+     index num (?) -- could move to root.
+     low
+     high
+  

@@ -1,0 +1,90 @@
+We need to pick a metaformat for ENDIVEs and SNIPs.
+
+We want:
+  * A fairly efficient encoding in time and space.
+  * Efficient and reasonable diffs.
+  * Efficient parsing and encoding operations in time and code size.
+  * If not text, easy to dump as text.
+  * Easy to extend in the future
+  * Widely supported
+  * Decent encoding for binary blobs.
+  * Easy to sign.
+  * Few gotchas in format for sidechannels, DoS, memory usage, etc
+
+  * Will we/won't we have to put a schema in the root doc?
+
+We need to pick an authentication mechanism for SNIPs.
+  * Merkle tree?
+  * Threshold signature?
+  * Multisignature?
+
+_If_ we're using merkle trees:
+  * What hash?  (Could we truncate? does it need collision-resistance?)
+  * How  does the hash performance affect our overall performance?
+
+Do we use the same metaformat for SNIPs and ENDIVEs?
+
+Do we build the indices before or after diff?
+
+If we need a binary diff format, what might it be?
+
+POSSIBLE FORMATS:
+  * Protobufs
+    - very widely used.
+    - length-based prefix encoding on compounds makes stuff a bit tricky
+      to wrangle and extend and diff.
+  * capnproto
+    - super complicated
+  * FlatBuffers (?)
+    - schema-dependent, with flatbuffers for extension stuff
+    - zero-copy
+  * MessagePack (?)
+    - Semantically similar to json.
+    - has a binary type, which is good.
+  * Avro (?)
+    - Very compact binary format, but requires a schema to decode.
+    - Schema-dependence is worrisome, but compactness is nice.
+  * Apache Thrift format? (?)
+    - 
+
+  * Ad-hoc binary (last resort)
+  * Current Tor directory metaformat?
+
+  * Veriform (?)
+  * mincodec (?)
+  * SPKI-Sexpr
+  * ActiveMQ metaformat (?)
+  * CBOR (RFC 7049), 2014
+    - Semantically similar to json, well-defined, specified,
+      supports bytestrings. Lots of implementation.
+    - Has a schema system (RFC 8610), 2019
+    - Does not have an automatic mapping for structures (what did I mean when
+      I typed this?)
+    - pretty complex, would want to disallow a bunch of stuff
+    - indefinite-length arrays, if used, might make diffs ok?
+    - array lengths are number of items, not number of bytes.
+    - What uses this?
+  * XDR (RFC 4506), 2006 [originally RFC 1832, 1995)
+    - Pretty old. Used in nfs proto and http-ng
+
+
+REJECTED OUT OF HAND:
+  * Asn.1
+  * XML (no)
+  * json (no)
+
+
+PLACES TO LOOK FOR MORE FORMATS:
+  * Whatever serde supports
+  * What does signal/whatsapp do?
+      * Signal apparently uses protobufs in at least some places?
+  * What do various cryptocurrencies do?
+      * mostly ad hoc it would seem?
+  * https://en.wikipedia.org/wiki/Comparison_of_data-serialization_formats
+
+
+
+==============================
+
+Formats today:
+
