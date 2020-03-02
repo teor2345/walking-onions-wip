@@ -1,0 +1,55 @@
+v1:
+
+[ Pretend that we have reals, and can output reals ]
+
+given:
+   weights in uint32_t
+
+let total = sum of weights, as u64.
+
+let factor = (1<<64) / total  [pretend that we have reals]
+
+so_far = 0
+
+for each relay weight w:
+   let range_width = w * factor
+   let index_range_low = so_far
+   let index_range_high = so_far + range_width - epsilon
+   so_far += rangewidth
+
+
+v2:
+
+[ Pretend that we have reals ]
+
+given:
+   weights in uint32_t
+
+let total = sum of weights, as u64.
+
+let factor = (1<<64) / total  [pretend that we have reals]
+
+total_so_far = 0
+
+for each relay weight w:
+   let range_low = floor( total_so_far * factor )
+   total_so_far += w
+   let range_high = floor( total_so_far * factor ) - 1
+
+
+v3: No reals, but 64-bit-by-32-bit division.
+
+given:
+  weights in uint32_t, with sum also in uint32_t
+
+Let total = sum of weights, as u32
+
+Define POS(n:u32) = (n << 32) // T
+
+let total_so_far = 0
+
+for each weight w:
+   let range_low = POS(total_so_far)
+   total_so_far += w
+   let range_high = POS(total_so_far) - 1
+
