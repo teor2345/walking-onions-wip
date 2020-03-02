@@ -88,3 +88,26 @@ PLACES TO LOOK FOR MORE FORMATS:
 
 Formats today:
 
+  The line-oriented nature of our current format is a nice match
+  for diffs.  And it's extensible.
+
+  Large documents in our current format seem to compress pretty well,
+  but small ones don't, because of our encoding overhead, particularly
+  base64.
+
+
+What operations do we need on SNIPs?
+
+  It would be good if we could compress the indices and timestamps
+  in the ENDIVE, and reattach them to the SNIPs in the document.
+
+Index compression ideas:
+
+  Put a weight on router, and then define indices as a sequence of
+  routers, or as all routers with a given flag.  This gets converted to
+  SNIPs at the relays.
+
+  This conversion needs to be deterministic so that merkle trees can get
+  built.
+
+

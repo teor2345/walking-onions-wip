@@ -22,8 +22,15 @@ How do we keep exit port selection working?
 
 Which elements do we need to keep in SNIPs from current rs+md combo?
 
+How small does the root-document (remaining parts of the consensus) need
+to be?
+
 How do we do migration?  Can we keep the network useful? Can we get any
   benefit before all/most relays are updated?  Do we partition?
+
+Will we try to future-proof for fancy features, like:
+  - single-pass circuit construction
+  - fancy toplogies
 
 How large should we let the scope become?
   - Do we try to do any tricks to generate md consensuses better?
