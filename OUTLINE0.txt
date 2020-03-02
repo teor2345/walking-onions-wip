@@ -1,0 +1,34 @@
+OUTLINE OF ALL DOCUMENTS
+
+1. Overview
+
+2. ENDIVE and SNIP format
+
+3. Directory authorities make ENDIVEs:
+
+   * New vote elements for endives
+   * voting on endives
+   * Deciding how to vote.
+   * Computing ENDIVES from votes
+   * Index definitions
+
+4. Transferring ENDIVEs to relays
+
+5. Extending circuits:
+
+   * Relay behavior
+   * Client behavior
+
+6. Fancy client behavior
+
+   * Guards
+   * Selecting exits
+   * Bridges
+   * Path restrictions
+     * Families
+     * Country restrictions
+     * Tricky restrictions
+
+7. Hidden services and client behavior.
+
+8. Future work

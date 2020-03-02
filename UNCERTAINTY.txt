@@ -1,0 +1,38 @@
+MUST DECIDE BEFORE WRITING BASICALLY ANYTHING
+
+What metaformat to use for the SNIPs?
+
+What metaformat to use for the ENDIVE?
+
+Any point in investigating non-merkle-tree authentication?
+
+How do ENDIVE diffs work?
+
+MUST DECIDE BEFORE WRITING TOO MUCH
+
+How will all the timestamps work?
+
+How will bridges work?
+
+How do we keep V2 hs working?
+
+What are all the node selection rules we need to keep working?
+
+How do we keep exit port selection working?
+
+Which elements do we need to keep in SNIPs from current rs+md combo?
+
+How do we do migration?  Can we keep the network useful? Can we get any
+  benefit before all/most relays are updated?  Do we partition?
+
+How large should we let the scope become?
+  - Do we try to do any tricks to generate md consensuses better?
+  - Do we try for a unified MD consensus as well?
+
+AT ANY POINT
+
+What hash to use for the merkle tree? (if any)
+
+Do we make ed keys any bigger?
+
+

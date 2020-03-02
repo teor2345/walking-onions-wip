@@ -1,0 +1,23 @@
+OPPORTUNITIES FOR PROTOCOL CLEANUP: Decide how orthogonal they are.
+
+ * Core onion-routing client API
+
+ * Hash cleanup -- discard some old hashes
+
+ * Metaformat cleanup
+
+ * Dirauth isolation
+
+ * New crypto and handshake
+
+ * Remove TAP.
+
+ * Remove RSA identities.
+
+ * Torspec rewrite
+
+ * Cleanup family design.
+
+ * Cleanup country design.
+
+
