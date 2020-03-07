@@ -8,4 +8,12 @@
      index num (?) -- could move to root.
      low
      high
-  
+  flags?
+  software/version?
+  protovers
+  family intro?
+  cc intro
+  exit policy info?
+
+
+

@@ -58,8 +58,8 @@ POSSIBLE FORMATS:
     - Semantically similar to json, well-defined, specified,
       supports bytestrings. Lots of implementation.
     - Has a schema system (RFC 8610), 2019
-    - Does not have an automatic mapping for structures (what did I mean when
-      I typed this?)
+    - Does not have an automatic mapping for structures (way to encode/decode
+      objects into structs.)
     - pretty complex, would want to disallow a bunch of stuff
     - indefinite-length arrays, if used, might make diffs ok?
     - array lengths are number of items, not number of bytes.

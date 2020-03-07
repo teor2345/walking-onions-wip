@@ -4,6 +4,11 @@ OUTLINE OF ALL DOCUMENTS
 
 2. ENDIVE and SNIP format
 
+   * What are the differences
+   * Who needs to understand/implement what.
+   * Design considerations
+   * 
+
 3. Directory authorities make ENDIVEs:
 
    * New vote elements for endives

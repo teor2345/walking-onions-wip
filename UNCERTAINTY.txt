@@ -8,6 +8,8 @@ Any point in investigating non-merkle-tree authentication?
 
 How do ENDIVE diffs work?
 
+
+
 MUST DECIDE BEFORE WRITING TOO MUCH
 
 How will all the timestamps work?
@@ -15,6 +17,8 @@ How will all the timestamps work?
 How will bridges work?
 
 How do we keep V2 hs working?
+
+Can we avoid needing to have an absolutely-up-to-date root document?
 
 What are all the node selection rules we need to keep working?
 
@@ -35,6 +39,8 @@ Will we try to future-proof for fancy features, like:
 How large should we let the scope become?
   - Do we try to do any tricks to generate md consensuses better?
   - Do we try for a unified MD consensus as well?
+
+
 
 AT ANY POINT
 

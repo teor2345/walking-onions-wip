@@ -1,0 +1,29 @@
+
+syntax = "proto3";
+
+message Snip {
+  uint64 timestamp = 1;
+  uint32 lifetime = 2;
+
+  repeated bytes linkspecs= 3;
+
+  bytes ed_id_key = 4;
+  bytes ntor_key = 5;
+
+  string software = 6;
+  message ProtoVer {
+    uint32 p = 1;
+    uint32 lo = 2;
+    uint32 hi = 3;
+  }
+  repeated ProtoVer protovers = 7;
+  bytes family = 8;
+  string cc = 9;
+
+  uint32 idxtype = 10;
+  fixed32 idxlow = 11;
+  fixed32 idxhigh = 12;
+}
+
+
+  

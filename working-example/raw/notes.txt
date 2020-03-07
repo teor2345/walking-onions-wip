@@ -1,0 +1,10 @@
+Assumptions: there will never be any more or fewer fields.
+
+Ignoring exit policies per ususal.
+
+pretending everything is fixed-width except: software ver is nul-terminated,
+protover is
+  sequence of [ u8:what, u16:low, u16:high ]  00
+
+This probably wouldn't actually work in practice.  Instead it's meant to try
+to figure out a lower bound.

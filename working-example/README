@@ -1,0 +1,7 @@
+
+experimenting with encoding a SNIP-like thing (minus authentication) in
+various ways.  The "basic.txt" outlines the data we need to encode.
+
+We're ignoring exit policies for now.
+
+The encodings for protovers are likely wrong.

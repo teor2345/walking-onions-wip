@@ -1,0 +1,17 @@
+
+Here's our candidate thingie.
+
+  timestamp, lifetime
+  ed25519 identity key
+  link specifiers as blob.
+  curve25519 onion key
+  software/version: string.
+  protovers: actual protovers.
+  family info: zero or one keys.
+  cc intro: 2 byte country code.
+  exit policy info: ????
+  index entry: which index, low, high.
+
+
+
+
