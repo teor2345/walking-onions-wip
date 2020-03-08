@@ -1,0 +1,179 @@
+Walking onions -- week 1 update
+
+Hi!  On our current grant from the zcash foundation, I'm working
+on a full specification for the Walking Onions design.
+
+If you haven't read it, Walking Onions is a set of ideas meant to
+transition Tor away from its current dependency on a directory
+system, to improve scaling in the long term, and performance of
+low-bandwidth clients in the short term.
+
+I'm going assume in the rest of my email that you already have a
+decent idea of how Tor works, and of the Walking Onions proposal.
+If you need a Walking Onions refresher, see proposal 300 [PROP300]
+and the whitepaper that Chelsea Komlo, Ian Goldberg, and I have
+been working on [WHITEPAPER].
+
+The current scope for this work is to try to solve all the open
+design questions for Walking Onions, and to write a set of
+specifications we could use to build the system.
+
+I'm aiming to have the initial versions of these specs wrapped up
+in April.  Rather than dumping everything onto the mailing list at
+once, I'm going to try working in the open, sending weekly updates
+about my work.
+
+Design and specification are a lot of fun for me; I hope you'll
+have fun too reading along.
+
+This past week, I started by writing:
+
+   - An outline of the set of specifications we'd need to have
+     before we could implement walking onions. (OUTLINE0.txt)
+
+   - A list of areas of uncertainty that we need to solve before
+     or during writing the specs. (UNCERTAINTY.txt)
+
+   - A list of related problems that we might wind up solving
+     along with the walking onion specs (OPPORTUNITIES.txt)
+
+   - A rough grouping of initial tasks, which should eventually
+     turn into a schedule. (PLAN.txt)
+
+You can find all these documents in a working git repository
+[GITREPO] that I've been making for this purpose, if you like.  I
+don't intend for this repository to be a permanent reference or to
+be necessarily useful for anybody but me: everything important
+about it should eventually wind up in specifications and on this
+mailing list.
+
+==
+
+The biggest area of uncertainty was to pick a meta-format for
+ENDIVEs and SNIPs.  I looked at our existing directory
+meta-format, along with protobufs, messagepack, and a whole bunch
+of other systems.  I also looked into what kind of efficiency we'd
+get by just using a hand-tooled non-extensible binary format, so
+that I could see what kind of overhead we were looking at.
+
+The issue here is that I think we don't want to be using a
+text-based metaformat for SNIPs: we need SNIPs to be as small as
+possible, and our current text-based directory metaformat only
+compresses well when we're using huge amounts of it at once.
+
+But if we're doing a binary format, we probably shouldn't
+hand-roll it.  Trunnel lets us handle our existing formats safely,
+but those formats aren't so efficient in practice, and they aren't
+too standardized.  If we use a standardized binary format, then we
+get encoding, decoding, debugging dumps, optimization, and lots of
+other stuff "for free".
+
+After looking at a pretty huge variety of formats, I think that
+our best bet is something called "CBOR", standardized as RFC 7049
+[CBOR].  It is substantially based on MessagePack, but with a
+number of improvements.  Here are some of CBOR's advantages:
+
+    + It's optimized first for allowing encoding/decoding to be
+      done with small, simple code -- and second, for having a
+      small binary format.  IMO it succeeds at both: the
+      metaformat is simple, and there are decoder implementations
+      in less than 1kb of binary size.
+
+    + You can think of its data model as a "binary json"; it's
+      very flexible. (yes I know about the other binary jsons)
+
+    + It's standardized, and there are lots of implementations of
+      it, in lots of different languages.
+
+    + It has a data definition language [CDDL], which we don't
+      actually need to implement, but which we can use to help
+      write our specs and validate our implementation.
+
+    + It has a textual encoding for debugging, and a one-way
+      mapping to json.
+
+Here are some of its disadvantages:
+
+    - It doesn't have a built-in object mapping like protobufs
+      does.
+
+    - It allows multiple encodings for a single piece of
+      data. (The CBOR RFC explains how to make a canonical
+      encoding.)
+
+    - Our diff story gets slightly more complex when we have a
+      binary format.
+
+(I'd be happy to talk about other possibilities, but please make sure you
+know about the bikeshed first. [BIKESHED])
+
+==
+
+Doing diffs from one ENDIVE to the next will be helpful if we want
+to keep relay bandwidth on the small side.  We'll need binary
+diffs for this.  Fortunately, I think that shouldn't be too hard
+to do with our existing diff code: instead of doing line-by-line
+diffs, we'll just do CBOR-item-by-item diffs, and encode them in a
+byte-oriented way.  I've got a prototype half-written to make sure
+this is right.  The simplicity of CBOR makes this pretty easy.
+
+==
+
+There are a few ways to authenticate SNIPs.  It's looking like
+right now the most efficient will be merkle trees, with the root
+of the tree signed by a threshold signature algorithm like BLS.
+
+One of the neat things about merkle trees is that if we are
+transmitting the leaves and the signature on the root, we don't
+need to actually transmit the intermediate nodes as part of the
+ENDIVE.  So that's cool, and it will make ENDIVE diffs smaller.
+
+One of the not-so-neat things is that the merkle tree paths are a
+bit long.  There are ways to make them shorter: you only need to
+transmit one digest for each layer, plus a bit to say which hash
+it is.
+
+(I learned about these tricks while working on [WHITEPAPER],
+thanks to Ian and Chelsea.)
+
+One risky thing I've been thinking about is whether we can use a
+shorter-than-256-bits hash for the merkle tree nodes, if we don't
+need to worry about collision resistance for the digest functions.
+The SNIPs are generated by authorities, but they do contain a
+certain amount of adversary-created material.  Randomized hashes
+with an unpredictable key might help, particularly for
+intermediate nodes on the tree? [XMSS] has some ideas
+here. (Suggested by Jack Lloyd)
+
+
+==
+
+In the coming week, I'm hoping to finish up making my draft
+schedule, start doing research as needed to handle more open
+questions, and write an initial spec for the ENDIVE and SNIP
+formats.
+
+[BIKESHED] "Why Should I Care What Color the Bikeshed Is?"
+    http://bikeshed.com/
+
+[CBOR] RFC 7049: "Concise Binary Object Representation (CBOR)"
+    https://tools.ietf.org/html/rfc7049
+
+[CDDL] RFC 8610: "Concise Data Definition Language (CDDL): A
+    Notational Convention to Express Concise Binary Object
+    Representation (CBOR) and JSON Data Structures"
+    https://tools.ietf.org/html/rfc8610
+
+[GITREPO]  https://github.com/nmathewson/walking-onions-wip
+
+[PROP300] "Walking Onions: Scaling and Saving Bandwidth"
+    https://gitweb.torproject.org/torspec.git/plain/proposals/300-walking-onions.txt
+
+[WHITEPAPER] "Walking Onions: Scaling Anonymity Networks while
+    Protecting Users"
+    https://crysp.uwaterloo.ca/software/walkingonions/
+
+[XMSS] RFC 8391: "XMSS: eXtended Merkle Signature Scheme".
+    https://tools.ietf.org/html/rfc8391
+
+
