@@ -1,0 +1,120 @@
+
+# Document Formats: ENDIVEs and SNIPs
+
+authorities make ENDIVEs. and root docs.
+
+relays get ENDIVEs, extract SNIPs
+
+relays have to hold SNIPs and give them to clients
+
+clients need to use snips.
+
+## Notes on Metaformat
+
+x It's cbor.
+
+x It's defined by cddl
+
+x uses ints as map tags
+
+x meant for extensibility and terseness and easiness to parse.
+
+x Why not: protobufs, json, xml, sexpr, existing directory format, ad
+  hoc binary
+
+schema-free terse dumpable extensible terse standardized
+
+cbor flavor: no floats, must be valid and well-formed.  emitted by
+authorities and reconstructed by relays: when emitting, describe how
+canonical it must be.
+
+x diffs are possible, reusing a lot of existing code.
+
+When possible, going to define enums etc so that they can be used elsewhere
+in tor.
+
+## Goals
+
+need to keep SNIP size capped.  pad small SNIPs to max size.
+
+Need to keep ENDIVE delta size small.
+
+Generate ENDIVEs and consensuses from same votes?
+
+Don't need maximally up-to-date root document to use network.
+
+This document doesn't specify what the indices are.
+
+## SNIPs
+
+### SNIPCore: the info about a single router.
+
+Got to store what you need to finish extending to a router
+
+Also got to store what you need to connect to the same router again.
+
+Some kinds of SNIPs may need additional data.
+
+I expect to revise this as we figure out the rest of the system.
+
+Correpsonds roughly to routerstatus plus microdesc.
+
+Hoping to omit now-obsolete fields.
+
+
+### SNIPIndex: What to tell a client about a router
+
+Identify which index
+
+Identify low and high range
+
+### SNIPSignature: How to prove a SNIP is in the endive.
+
+Timestamp, lifetime, and [sig/multisig], hashpath.
+
+Let's come up with some may to make each relay ratchet on the timestamps so
+we can make the lifetime long.
+
+## ENDIVEs: sending a bunch of SNIPs efficiently.
+
+Don't need to include hashpaths, just root.
+
+Don't need to include index ranges, just build instructions for them.
+
+ENDIVE becomes a bunch of Snip+SnipIndex+SnipSignaure
+
+## Root documents
+
+Do not need to be up-to-date to use network!!!
+
+Let lifetime on these be long-ish.
+
+Mostly same stuff as current header/footer of consensus.
+
+
+## ENDIVE diffs
+
+x use standard diff algorithm, chunking on cbor lexical items, synchonizing
+  on bytestreams that represent ed keys.  Output has to be byte-oriented
+  instead of line-oriented
+
+Diff = {
+  version : int,
+  digest : [ alg: DigAlg, pre:bstr, post:bstr, ],
+  commands : [* Command ],
+  * int : any,
+}
+
+DigAlg = "SHA2-256" / "SHA2-512" / "SHA3-256" / "SHA3-512" / "Kangaroo12-256"
+
+OrigBytes = 0
+InsertBytes = 1
+
+Command = [ OrigBytes, start: uint, end: uint ] / [ InsertBytes, bstr ]
+
+## Managing indices over time.
+
+## Storage analysis
+
+## Bandwidth analysis
+
