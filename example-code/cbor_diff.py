@@ -1,7 +1,12 @@
 #!/usr/bin/python3
 
 #
-# Example cbor-aware binary diff tool.
+# Example cbor-aware binary diff tool.  Note that using this with
+# python's difflib is a bit overkill, since python's difflib knows how
+# to avoid going quadratic pretty well.  Instead, this code is meant
+# to show how to use cbor syntax to structure binary data into larger
+# chunks that we can diff using a less efficient, more line-oriented
+# algorithm.
 #
 
 import cbor2
@@ -11,7 +16,7 @@ ORIG_BYTES = 0
 INSERT_BYTES = 1
 
 def apply_diff(inp, diff_str):
-    # assumes valid diff.
+
     diff = cbor2.loads(diff_str)
 
     out = []
