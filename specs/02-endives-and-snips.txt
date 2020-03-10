@@ -1,51 +1,130 @@
 
 # Document Formats: ENDIVEs and SNIPs
 
-authorities make ENDIVEs. and root docs.
+Here we specify a pair of related document formats that we will
+use for specifying SNIPs and ENDIVEs.
 
-relays get ENDIVEs, extract SNIPs
+Recall from proposal 300 that a SNIP is a set of information about
+a single relay, plus proof from the directory authorities that the
+given relay occupies a given range in a certain routing index.
+For example, we can imagine that a SNIP might say:
 
-relays have to hold SNIPs and give them to clients
+    * Relay X has the following IP, port, and onion key.
+    * In the routing index Y, it occupies positions 0x20002
+      through 0x23000.
+    * This SNIP is valid on 2020-12-09 00:00:00, for one hour.
+    * Here is a signature of all the above text, using a threshold
+      signature algorithm.
 
-clients need to use snips.
+You can think of a SNIP as a signed combination of a routerstatus,
+a microdescriptor ... together with a little bit of the randomized
+routing table from Tor's current path selection code, all wrapped
+in a signature.
 
-## Notes on Metaformat
+Every relay holds a set of SNIPs, and serves them to clients when
+the client is extending by routing index.
 
-x It's cbor.
+An ENDIVE is a complete set of SNIPs.  Relays download ENDIVEs, or
+diffs between ENDIVEs, once every voting period.  We'll explain
+some ways below to make these diffs small, even though some of the
+information in them (particularly SNIP signatures and index
+ranges) will tend to change with every period.
 
-x It's defined by cddl
+## Preliminaries and scope
 
-x uses ints as map tags
+### Some goals for our formats
 
-x meant for extensibility and terseness and easiness to parse.
+We want SNIPs to be small, since they need to be sent on the wire
+one at a time, and won't get much benefit from compression.  (To
+avoid a side-channel, we want CREATED cells to all be the same
+size, which means we need to pad up to the largest size possible
+for a SNIP.)
 
-x Why not: protobufs, json, xml, sexpr, existing directory format, ad
-  hoc binary
+We want ENDIVEs to be compressible, and small.  If we can continue
+getting benefit from diffs, we should.
 
-schema-free terse dumpable extensible terse standardized
+We should preserve (or loosen) our policy of requiring only loose
+time synchronization between clients and relays.
 
-cbor flavor: no floats, must be valid and well-formed.  emitted by
-authorities and reconstructed by relays: when emitting, describe how
-canonical it must be.
+### Notes on Metaformat
 
-x diffs are possible, reusing a lot of existing code.
+In the format descriptions below, we will describe a set of
+documents in the CBOR metaformat, as specified in RFC 7049.  If
+you're not familiar with CBOR, you can think of it as a simple
+binary version of JSON, optimized first for simplicity of
+implementation and second for space.
 
-When possible, going to define enums etc so that they can be used elsewhere
-in tor.
+I've chosen CBOR because it's schema-free (you can parse it
+without knowing what it is), terse, dumpable as text, extensible,
+standardized, and very easy to parse and encode.
 
-## Goals
+We will choose to represent nearly everything as maps whose
+whose keys are short integers: this is slightly shorter in its
+encoding than string-based dictionaries.  (We could make things
+even shorter by using arrays, but that would have future-proofing
+implications.)
 
-need to keep SNIP size capped.  pad small SNIPs to max size.
+We'll use CDDL (defined in RFC 8610) to describe the data in a way
+that can be validated -- and hopefully, in a way that will make it
+comprehensible.
 
-Need to keep ENDIVE delta size small.
+We make the following restrictions to CBOR documents that Tor
+implementations will generate:
 
-Generate ENDIVEs and consensuses from same votes?
+   * No floating-point values are permitted.
 
-Don't need maximally up-to-date root document to use network.
+   * No tags are allowed unless otherwise specified.
 
-This document doesn't specify what the indices are.
+   * All items must follow the rules of RFC 7049 section 3.9 for
+     canonical encoding, unless otherwise specified.
+
+
+Implementations SHOULD accept and parse documents that are not
+generated according to these rules, for future extensibility.
+However, implementations SHOULD reject documents that are not
+well-formed and valid.
+
+### Design overview: Authentication
+
+I'm going to specify a flexible authentication format that
+captures threshold signatures, multisignatures, and merkle trees.
+This will give us flexibility in our choice of authentication
+mechanism over timeXXX
+
+
+
+
+
+
+We're going to keep the SNIP format extensible, on the theory that
+clients are the hardest to change over time.  XXXXX
+
+
+We need to specify for three levels of strictness:
+
+1. When generating ENDIVEs, we need to specify down to the byte
+what the output is, since all the directory authorities need to
+generate the same bytes.
+
+2. We'd like 
+
+xxxx
+
+### What isn't in this document
+
+This document doesn't tell you what the different routing indices
+are.
+
 
 ## SNIPs
+
+    ; A SNIP has three parts
+    SNIP = [
+        sig: snip-signature signature,
+        index : bstr .cbor index-set,
+        snip : bstr .cbor snip-core,
+    ]
+
 
 ### SNIPCore: the info about a single router.
 
@@ -61,6 +140,31 @@ Correpsonds roughly to routerstatus plus microdesc.
 
 Hoping to omit now-obsolete fields.
 
+    ; blah
+    snip-core = {
+        id : ed25519-public,
+        ntor : curve25519-public,
+        ? ls : [ bstr ],
+        ? sw : [ tstr, tstr ],
+        ? pv : protovers,
+        ? fam : [ ed25519-public ],
+        ? cc : country,
+        ; exit-policy ??xxxx
+        ; flags ??xxxx
+    }
+    ; xxxx use integer IDs
+
+    ed25519-public = bstr .size 32;
+    curve25519-public = bstr .size 32;
+    country = tstr .size 2;
+
+    protover = { proto-id => proto-bitmask };
+    proto-id = &(
+        Link : 1,
+        Relay : 2,
+        ; ... xxxx
+    )
+    proto-bitmask = uint / bstr;
 
 ### SNIPIndex: What to tell a client about a router
 
@@ -68,12 +172,57 @@ Identify which index
 
 Identify low and high range
 
+    ; blah
+
+    index-set = {
+        ts : timestamp,
+        lt : lifetime,
+        * index-id => range,
+        * str => any
+    }
+
+    timestamp = uint;
+    lifetime = uint;
+
+    index-id = int;
+    range = [ lo: index-pos,
+              hi: index-pos ]
+
+    index-pos = uint / bstr;
+
+
 ### SNIPSignature: How to prove a SNIP is in the endive.
 
 Timestamp, lifetime, and [sig/multisig], hashpath.
 
 Let's come up with some may to make each relay ratchet on the timestamps so
 we can make the lifetime long.
+
+    ; SNIPSignature
+
+    snip-signature = {
+        ? 1 => SNIPSigningAlgorithm,
+        ? 2 => SNIPDigestAlgorithm,
+        ? 3 => SNIPKeyID / [ SNIPKeyID ],
+        ? 4 => SNIPSig / [ SNIPSig ],
+        ? 5 => MerklePath,
+        int => any,
+    }
+
+    SNIPKeyID = bstr;
+    SNIPSig = bstr;
+    MerklePath = [ bstr ];
+
+    SNIPSigningAlgorithm = &(
+       ed25519-multi : 1,
+       bls : 2,
+    );
+
+    SNIPDigestAlgorithm = &(
+       sha2-256 : 0,
+       sha3-256 : 1,
+       kangaroo12-256 : 2,
+    );
 
 ## ENDIVEs: sending a bunch of SNIPs efficiently.
 
@@ -98,17 +247,18 @@ x use standard diff algorithm, chunking on cbor lexical items, synchonizing
   on bytestreams that represent ed keys.  Output has to be byte-oriented
   instead of line-oriented
 
-Diff = {
-  version : int,
-  digest : [ alg: DigAlg, pre:bstr, post:bstr, ],
-  commands : [* Command ],
-  * int : any,
-}
+    ; Define a generic diff type for binary files.
+    Diff = {
+        version : int,
+        digest : [ alg: DigAlg, pre:bstr, post:bstr, ],
+        commands : [* Command ],
+        * int : any,
+    }
 
-DigAlg = "SHA2-256" / "SHA2-512" / "SHA3-256" / "SHA3-512" / "Kangaroo12-256"
+    DigAlg = "SHA2-256" / "SHA2-512" / "SHA3-256" / "SHA3-512" / "Kangaroo12-256"
 
-OrigBytes = 0
-InsertBytes = 1
+    OrigBytes = 0
+    InsertBytes = 1
 
 Command = [ OrigBytes, start: uint, end: uint ] / [ InsertBytes, bstr ]
 
