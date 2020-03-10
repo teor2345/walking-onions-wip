@@ -322,6 +322,8 @@ and apply it.
 
     ; Binary diff specification.
     BinaryDiff = {
+        ; This is version 1.
+        v : 1,
         ; optionally, a diff can say what different digests
         ; of the document should be before and after it is applied.
         ? digest : { DigestAlgorithm =>
@@ -342,8 +344,8 @@ and apply it.
         * tstr : any
     ]
 
-    ; There are currently only two diff commands.  One is to copy
-    ; some bytes from the original.
+    ; There are currently only two diff commands.
+    ; One is to copy some bytes from the original.
     DiffCommand = [
         OrigBytesCmdId,
         ; Range of bytes to copy from the original document.
@@ -382,7 +384,9 @@ Generating a binary diff can be trickier, and is not specified here.
 There are several generic algorithms out there for making binary diffs
 between arbitrary byte sequences. Since these are complex, I recommend a
 chunk-based CBOR-aware algorithm, using each CBOR item in a similar way
-to that in which our current line-oriented code uses lines.
+to that in which our current line-oriented code uses lines.  (See
+example-code/cbor_diff.py for an example of doing this with Python's
+difflib.)
 
 However, the diff format above should work equally well no matter what
 diff algorithm is used.

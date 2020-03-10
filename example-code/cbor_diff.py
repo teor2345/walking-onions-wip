@@ -19,6 +19,8 @@ def apply_diff(inp, diff_str):
 
     diff = cbor2.loads(diff_str)
 
+    if diff['v'] != 1:
+        raise ValueError()
     out = []
     for c in diff['cmds']:
         if c[0] == ORIG_BYTES:
@@ -118,6 +120,7 @@ def make_diff(obj1, obj2):
 
     commands = []
     diff = {
+        'v' : 1,
         'cmds' : commands,
     }
     sm = difflib.SequenceMatcher(None, tok1, tok2)
