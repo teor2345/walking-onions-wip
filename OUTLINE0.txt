@@ -19,6 +19,8 @@ OUTLINE OF ALL DOCUMENTS
 
 4. Transferring ENDIVEs to relays
 
+   * reconstructing ENDIVEs.
+
 5. Extending circuits:
 
    * Relay behavior

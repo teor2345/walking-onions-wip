@@ -32,13 +32,16 @@ ranges) will tend to change with every period.
 
 ## Preliminaries and scope
 
-### Some goals for our formats
+### Goals for our formats
 
 We want SNIPs to be small, since they need to be sent on the wire
 one at a time, and won't get much benefit from compression.  (To
 avoid a side-channel, we want CREATED cells to all be the same
 size, which means we need to pad up to the largest size possible
 for a SNIP.)
+
+We want to place as few demands on clients as possible, and we want to
+preserve forward compatibility.
 
 We want ENDIVEs to be compressible, and small.  If we can continue
 getting benefit from diffs, we should.
@@ -87,46 +90,115 @@ well-formed and valid.
 ### Design overview: Authentication
 
 I'm going to specify a flexible authentication format that
-captures threshold signatures, multisignatures, and merkle trees.
+captures threshold signatures, multisignatures, and Merkle trees.
 This will give us flexibility in our choice of authentication
-mechanism over timeXXX
+mechanism over time.
 
+The flexibility of this format is a
+  * If we use Merkle trees, we can make ENDIVE diffs much much smaller,
+    and save a bunch of authority CPU -- at the expense of requiring
+    slightly larger SNIPs.
 
+  * If Merkle tree root signatures are in SNIPs, SNIPs get a
+    bit larger, but they can be used by clients that do not have the
+    latest signed Merkle tree root.
 
+  * If we use threshold signatures, we need to depend on
+    not-yet-quite-standardized algorithms.  If we use multisignatures,
+    then either SNIPs get bigger, or we need to put the signed Merkle
+    tree roots into a consensus document.
 
+Of course, flexibility in signature formats is risky, since the more
+code paths there are, the more opportunities there are for nasty bugs.
+With this in mind, I'm structuring our authentication so that there
+should (to the extent possible) be only a single validation path for
+different uses.
 
+With this in mind, our format is structured so that "not using a
+Merkle tree" is considered, from the client's point of view, the same as
+"using a Merkle of depth 1".
 
-We're going to keep the SNIP format extensible, on the theory that
-clients are the hardest to change over time.  XXXXX
+The authentication on a single snip is structured, in the abstract, as:
+   - ITEM: The item to be authenticated.
+   - PATH: A list of N bits, representing a path through a Merkle tree from
+     its root, where 0 indicates a left branch and 1 indicates a right
+     branch.  (Note that in a left-leaning tree, the 0th leaf will have
+     path 000..0, the 1st leaf will have path 000..1, and so on.)
+   - BRANCH: A list of N digests, representing the branches in a Merkle tree
+     that we are _not_ taking.
+   - SIG: A generalized signature (either a threshold signature or a
+     multisignature) of a top-level digest.
+   - NONCE: an optional nonce for use with the hash functions.
 
+We assume two hash functions here: `H_leaf()` to be used with leaf
+items, and `H_node()` to be used with intermediate nodes.  These functions
+are parameterized with a path through the tree, and with a nonce.
 
-We need to specify for three levels of strictness:
+To validate the authentication on a SNIP, the client proceeds as follows:
 
-1. When generating ENDIVEs, we need to specify down to the byte
-what the output is, since all the directory authorities need to
-generate the same bytes.
+    Algorithm: Validating SNIP authentication
 
-2. We'd like 
+    Let H = H_leaf(PATH, NONCE, ITEM).
+    While N > 0:
+       Remove the last bit of PATH; call it P.
+       Remove the last digest of BRANCH; call it B.
 
-xxxx
+       If P is zero:
+           Let H = H_node(PATH, NONCE, H, B)
+       else:
+           Let H = H_node(PATH, NONCE, B, H)
+
+       Let N = N - 1
+
+    Check wither SIG is a correct (multi)signature over H with the
+    correct key(s).
+
+Parameterization on this structure is up to the authorities.  If N is
+zero, then we are not using a Merkle tree.  The generalize signature
+SIG can either be given as part of the SNIP, or as part of a consensus
+document.  I expect that in practice, we will converge on a single set of
+parameters here quickly (I'm favoring BLS signatures and a Merkle
+tree), but using this format will give clients the flexibility to handle
+other variations in the future.
+
+### Design overview: how the formats work together
+
+Authorities, as part of their current voting process, will produce an
+ENDIVE.
+
+Relays will download this ENDIVE (either directly or as a diff),
+validate it, and extract SNIPs from it.  Extracting these SNIPs may be
+trivial (if they are signed individually), or more complex (if they are
+signed via a merkle tree, and the merkle tree needs to be
+reconstructed).  This complexity is acceptable only to the extent that
+it reduces diff size.
+
+Once the SNIPs are reconstructed, relays will hold them, and serve them
+to clients.
 
 ### What isn't in this document
 
-This document doesn't tell you what the different routing indices
-are.
+This document doesn't tell you what the different routing indices are or
+mean.  For now, we can imagine there being one index for guards, one for
+middles, and one for exits, and one for each hidden service directory
+ring.
 
+This document doesn't give an algorithm for computing ENDIVEs from
+votes.
 
 ## SNIPs
 
+Each SNIP has three pieces: 
+
     ; A SNIP has three parts
     SNIP = [
-        sig: snip-signature signature,
+        auth: snip-signature,
         index : bstr .cbor index-set,
         snip : bstr .cbor snip-core,
     ]
 
 
-### SNIPCore: the info about a single router.
+### SNIPCore: information about a single router.
 
 Got to store what you need to finish extending to a router
 
@@ -243,24 +315,78 @@ Mostly same stuff as current header/footer of consensus.
 
 ## ENDIVE diffs
 
-x use standard diff algorithm, chunking on cbor lexical items, synchonizing
-  on bytestreams that represent ed keys.  Output has to be byte-oriented
-  instead of line-oriented
+Here is a binary format to be used with ENDIVEs and any other similar
+binary formats.  Authorities and directory caches need to be able to
+generate it; clients and non-cache relays only need to be able to parse
+and apply it.
 
-    ; Define a generic diff type for binary files.
-    Diff = {
-        version : int,
-        digest : [ alg: DigAlg, pre:bstr, post:bstr, ],
-        commands : [* Command ],
-        * int : any,
-    }
+    ; Binary diff specification.
+    BinaryDiff = {
+        ; optionally, a diff can say what different digests
+        ; of the document should be before and after it is applied.
+        ? digest : { DigestAlgorithm =>
+                         [ pre : Digest,
+                           post : Digest ]},
 
-    DigAlg = "SHA2-256" / "SHA2-512" / "SHA3-256" / "SHA3-512" / "Kangaroo12-256"
+        ; optionally, a diff can give some information to identify
+        ; which document it applies to, and what document you get
+        ; from applying it.  These might be a tuple of a document type
+        ; and a publication type.
+        ? ident : [ pre : any, post : any ]
 
-    OrigBytes = 0
-    InsertBytes = 1
+        ; list of commands to apply in order to the original document in
+        ; order to get the transformed document
+        cmds : [ *DiffCommand ]
 
-Command = [ OrigBytes, start: uint, end: uint ] / [ InsertBytes, bstr ]
+        ; for future extension.
+        * tstr : any
+    ]
+
+    ; There are currently only two diff commands.  One is to copy
+    ; some bytes from the original.
+    DiffCommand = [
+        OrigBytesCmdId,
+        ; Range of bytes to copy from the original document.
+        ; Ranges include their starting byte, but do not include their
+        ; ending byte.
+        start : uint,
+        end : uint,
+    ]
+
+    ; The other diff comment is to insert some bytes from the diff.
+    DiffCommand /= [
+        InsertBytesCmdId,
+        bytes : bstr,
+    ]
+
+    OrigBytesCmdId = 0
+    InsertBytesCmdId = 1
+
+Applying a binary diff is simple:
+
+    Algorithm: applying a binary diff.
+
+    (Given an input bytestring INP and a diff D, produces an output OUT.)
+
+    Initialize OUT to an empty bytestring.
+
+    For each command C in D.commands, in order:
+
+        If C begins with OrigBytesCmdId:
+            Append INP[C.start .. C.end] to OUT.
+
+        else: # C begins with InsertBytesCmdId:
+            Append C.bytes to OUT.
+
+Generating a binary diff can be trickier, and is not specified here.
+There are several generic algorithms out there for making binary diffs
+between arbitrary byte sequences. Since these are complex, I recommend a
+chunk-based CBOR-aware algorithm, using each CBOR item in a similar way
+to that in which our current line-oriented code uses lines.
+
+However, the diff format above should work equally well no matter what
+diff algorithm is used.
+
 
 ## Managing indices over time.
 
@@ -268,3 +394,21 @@ Command = [ OrigBytes, start: uint, end: uint ] / [ InsertBytes, bstr ]
 
 ## Bandwidth analysis
 
+## Common CDDL items
+
+    ; Enumeration to define integer equivalents for all the digest algorithms
+    ; that Tor uses anywhere.  Note that some of these are not used in
+    ; this spec, but are included so that we can use this production
+    ; whenever we need to refer to a hash function.
+    DigestAlgorithm = &(
+        SHA1     : 1,     ; deprecated.
+        SHA2-256 : 2,
+        SHA2-512 : 3,
+        SHA3-256 : 4,
+        SHA3-512 : 5,
+        Kangaroo12-256 : 6,
+        Kangaroo12-512 : 7,
+    )
+
+    ; A digest is represented as a binary blob.
+    Digest = bstr;
