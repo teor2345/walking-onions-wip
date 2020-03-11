@@ -1,0 +1,30 @@
+
+We've got to make a bunch of SNIPs, and encode them in the ENDIVE.
+
+Decoding algorithm:
+
+   For each index, build up the ranges for each router entry that is in that
+   index.
+
+      Use a simple encoding for bandwidths and sequences of zeros.
+      (Does "sequences of zeros" make sense with our use of compression
+      anyway?)
+
+      Need another encoding for bstr suences like hsdirs.  Maybe
+      start-of-index for included, nil otherwise.
+
+      We might save energy by having a specialized bstr derivation for hsv2
+      and hsv3 sequences?
+
+   Each set of indices has to be in a group.  These groups are put into
+   single SNIPs.  Each group is ordered.
+
+   If we're doing a merkle tree, then we say how many signed roots there are
+   and how many leaves each one covers.  Then we give the signature on each.
+
+   Do we mix per-router annotations in with the routers, or in a separate big
+   long list? 
+
+
+
+

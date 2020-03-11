@@ -394,7 +394,7 @@ validated as described in "Design overview: Authentication" above.
     ; Most elements in a SNIPSignature are positional and fixed
     SNIPSignature = [
         ; The actual signature or signatures.
-        SNIPSig / [ * SNIPSig ],
+        SingleSig / [ + SingleSig ],
 
         ; algorithm to use for the path througbh the merkle tree.
         d_alg : DigestAlgorithm,
@@ -410,15 +410,15 @@ validated as described in "Design overview: Authentication" above.
         ? nonce : bstr,
 
         ; extensions for later use. These are not signed.
-        extensions : { any => any },
+        ? extensions : { any => any },
     ];
 
-    ; One signature on a SNIP.  If the signature is a threshold
+    ; One signature on a SNIP or ENDIVE.  If the signature is a threshold
     ; signature, or a reference to a signature in another
-    ; document, there will probably be just one of these.  But if
+    ; document, there will probably be just one of these per SNIP.  But if
     ; we're sticking a full multisignature in the document, this
     ; is the one to use.
-    SNIPSig = [
+    SingleSig = [
        s_alg: SigningAlgorithm,
        signature : bstr,
        ; A prefix of the key or the key's digest, depending on the
@@ -436,6 +436,46 @@ validated as described in "Design overview: Authentication" above.
 
 
 ## ENDIVEs: sending a bunch of SNIPs efficiently.
+
+ENDIVEs are delivered by the authorities in a compressed format optimized for
+diffs.
+
+    ; XXX
+    ENDIVE = [
+        ; Signature
+        sig: ENDIVESignature,
+
+        ; Contents
+        body: bstr .cbor ENDIVEContent,
+    ];
+
+
+    ENDIVESignature = [
+        ; The actual signatures.
+        [ + SingleSig ],
+
+        ; Lifespan, in seconds since the epoch, and in duration
+        ; after that time.
+        start-time: uint,
+        lifetime: uint,
+
+        ; extensions for later use. These are not signed.
+        ? extensions : { any => any },
+    ];
+
+    ENDIVEContent = {
+
+        signatures : [ ],
+
+        indices : [  ],
+
+        relays : [ * ENDIVERouterData ],
+
+        ; for future exensions
+        * tstr : any,
+    };
+
+
 
 Don't need to include hashpaths, just root.
 
@@ -493,6 +533,8 @@ and apply it.
         start : uint,
         end : uint,
     ]
+    ; XXXX would it make sense to have relative/absolute versions of the
+    ; above to make the numbers smaller?
 
     ; The other diff comment is to insert some bytes from the diff.
     DiffCommand /= [
