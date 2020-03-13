@@ -762,10 +762,6 @@ However, the diff format above should work equally well no matter what
 diff algorithm is used.
 
 
-## Managing indices over time.
-
-XXXX
-
 ## Storage analysis
 
 XXXX
