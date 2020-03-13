@@ -11,9 +11,29 @@ Identify decisions to take before writing in each area.
 
 Loose outline for proposals. (done v1)
 
-Do research
+==============================
 
-Refine outlines.
+NEED TO DIVIDE THESE BY TWO OR ELSE I DON'T FINISH IN MARCH?
 
-Write, write, write.
+Draft ENDIVE design  (finish today)
 
+Draft Authority operation (1 day)
+
+Draft ENDIVE transfer and reconstruction. (1 day)
+
+Draft Extending circuits (1 day)
+
+Draft : root document????? (0.5 day)
+
+Draft Guards and Bridges (1 day)
+
+Draft Exit selection (2 days) *** -- uncertainty
+
+Draft Path restrictions (2 days) ***
+
+Draft hidden services (1 day)
+
+Draft performance analysis.
+
+This takes up too much of mar/april at current rates.  Need to assume faster
+rate than above or dedicate larger amounts of time. ^^^^
