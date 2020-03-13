@@ -25,8 +25,8 @@ Every relay holds a set of SNIPs, and serves them to clients when
 the client is extending by routing index.
 
 An ENDIVE is a complete set of SNIPs.  Relays download ENDIVEs, or
-diffs between ENDIVEs, once every voting period.  We'll explain
-some ways below to make these diffs small, even though some of the
+diffs between ENDIVEs, once every voting period.  We'll accept some
+complexity in order to make these diffs small, even though some of the
 information in them (particularly SNIP signatures and index
 ranges) will tend to change with every period.
 
@@ -366,8 +366,10 @@ SNIPLocation for that relay exists.
     SNIPLocation = {
         ; A SNIP's location is given as a ranges in different
         ; indices.
-        * IndexId => IndexRange,
-        ; For experimental and extension use.
+        + IndexId => IndexRange,
+
+        ; For experimental and extension use -- denotes other kinds of
+        ; indices.
         * tstr => any,
     }
 
@@ -394,7 +396,7 @@ validated as described in "Design overview: Authentication" above.
     ; Most elements in a SNIPSignature are positional and fixed
     SNIPSignature = [
         ; The actual signature or signatures.
-        SingleSig / [ + SingleSig ],
+        SingleSig / MultiSig,
 
         ; algorithm to use for the path througbh the merkle tree.
         d_alg : DigestAlgorithm,
@@ -402,7 +404,8 @@ validated as described in "Design overview: Authentication" above.
         merkle_path : MerklePath ,
 
         ; Lifespan, in seconds since the epoch and in duration
-        ; after that time.
+        ; after that time.  This is included as part of the nonce input
+        ; to the hash algorithm for the signature.
         start-time: uint,
         lifetime: uint,
 
@@ -417,45 +420,63 @@ validated as described in "Design overview: Authentication" above.
     ; signature, or a reference to a signature in another
     ; document, there will probably be just one of these per SNIP.  But if
     ; we're sticking a full multisignature in the document, this
-    ; is the one to use.
+    ; is just one of the signatures on it.
     SingleSig = [
        s_alg: SigningAlgorithm,
        signature : bstr,
        ; A prefix of the key or the key's digest, depending on the
        ; algorithm.
        ?keyid : bstr
-    ];
+       ];
+
+    MultiSig = [ + SingleSig ];
 
     ; A Merkle path is represented as a sequence of bits to
     ; indicate whether we're going left or right, and a list of
     ; hashes for the parts of the tree that we aren't including.
     ;
     ; (It's safe to use a uint for the bits, since it will never
-    ; overflow 64 bits.)
+    ; overflow 64 bits -- that would mean a merkle tree with too many
+    ; leaves to actually calculate on.)
     MerklePath = [ uint, * bstr ];
+
 
 
 ## ENDIVEs: sending a bunch of SNIPs efficiently.
 
-ENDIVEs are delivered by the authorities in a compressed format optimized for
-diffs.
+ENDIVEs are delivered by the authorities in a compressed format, optimized
+for diffs.
 
-    ; XXX
+Note that if we are using Merkle trees for SNIP authentication, ENDIVEs do
+not include the trees at all, since those can be inferred from the leaves of
+the tree.  Similarly, the ENDIVEs do not include raw indices, but instead
+include a set of bandwidths that can be combined into the index values --
+these changes less frequently, and therefore are more diff friendly.
+
+Note also that this format has more "wasted bytes" than SNIPs do: unlike when
+transmitting SNIPs, we can usefully compress ENDIVEs with even the most
+expensive compression algorithms we have.
+
+    ; ENDIVEs are also sent as CBOR.
     ENDIVE = [
-        ; Signature
+        ; Signature for the ENDIVE, using a simpler format than for the
+        ; a SNIP.  Since ENDIVEs are more like a consensus, we don't need
+        ; to use threshold signatures or merkle paths here.
         sig: ENDIVESignature,
 
-        ; Contents
+        ; Contents, as a binary string.
         body: bstr .cbor ENDIVEContent,
     ];
 
 
     ENDIVESignature = [
-        ; The actual signatures.
+        ; The actual signatures on the endive. A multisignature is the
+        ; likeliest format here.
         [ + SingleSig ],
 
         ; Lifespan, in seconds since the epoch, and in duration
-        ; after that time.
+        ; after that time. As with SNIPSignature, these are included as
+        ; part of the hash nonce for the signature algorithm.
         start-time: uint,
         lifetime: uint,
 
@@ -465,9 +486,20 @@ diffs.
 
     ENDIVEContent = {
 
-        signatures : [ ],
+        sig_params : {
+            start-time: uint,
+            lifetime: uint,
+            ? signature-nonce : bstr,
 
-        indices : [  ],
+            signature-depth : uint,
+            signature-digest-alg: DigestAlgorithm,
+
+            * tstr => any,
+        }
+
+        signatures : [ *SingleSig ] / [ *MultiSig ],
+
+        indexgroups : [ *IndexGroup ],
 
         relays : [ * ENDIVERouterData ],
 
@@ -475,13 +507,68 @@ diffs.
         * tstr : any,
     };
 
+    ; An "indexgroup" lists a bunch of routing indices that apply to the same
+    ; SNIPs.  There may be multiple indexgroups in the case when we want to
+    ; have the same relay appear in more than one SNIP with different indices
+    ; for some reason.
+    IndexGroup = [
+        ; A list of all the indices that are built for this index group.
+        indices : [ + IndexId ],
+        ; A list of keys to delete from SNIPs to build this index group.
+        omit_from_snips : [ *(int/tstr) ],
+
+        ; A detailed description of how to build the index.
+        + IndexId => IndexSpec,
+
+        ; For experimental and extension use.
+        * tstr => any,
+    ];
+
+    IndexType = &(
+        Indextype_Raw : 0,
+        Indextype_Weighted : 1,
+        Indextype_RSAID : 2,
+        Indextype_Ed25519Id : 3,
+    );
+
+    ; An indexspec may given as a raw set of indices.  This is a fallback for
+    ; cases where we simply can't construct an index any other way.
+    IndexSpec = {
+        type: IndexType_Raw,
+        ; This index is constructed by taking relays by index from the list
+        ; of ENDIVERouterData, and putting them at a given point in the index.
+        index_ranges: [ * [ uint, IndexPos, IndexPos ] ],
+    }
+    ; This index is computed from the weighted bandwidths of all the SNIPs.
+    ; Note that when a single bandwidth changes, it might otherwise change
+    ; all the indices, even if none of the other.
+    IndexSpec /= {
+        type: Indextype_Weighted,
+        ; This index is constructed by assigning a weight to each relay,
+        ; and then normalizing those weights. See algorithm below XXX
+        index_weights: [ * uint32 ],
+    }
+    uint32 = uint .size 4;
+
+    ; This index is computed from the RSA identity keys digests of all of the
+    ; SNIPs.
+    IndexSpec /= {
+        type: Indextype_RSAID,
+        n_bytes: uint,
+    }
+    ; This index is computed from the Ed25519 identity keys of all of the
+    ; SNIPs.
+    IndexSpec /= [
+        type : Indextype_Ed25519Id,
+        n_bytes : uint,
+        d_alg : DigestAlgorithm,
+        prefix : bstr,
+        suffix : bstr,
+    }
 
 
-Don't need to include hashpaths, just root.
+    ENDIVERouterData : {
 
-Don't need to include index ranges, just build instructions for them.
-
-ENDIVE becomes a bunch of Snip+SnipIndex+SnipSignaure
 
 ## Root documents
 
@@ -542,8 +629,8 @@ and apply it.
         bytes : bstr,
     ]
 
-    OrigBytesCmdId = 0
-    InsertBytesCmdId = 1
+    OrigBytesCmdId = 0;
+    InsertBytesCmdId = 1;
 
 Applying a binary diff is simple:
 
@@ -579,6 +666,10 @@ diff algorithm is used.
 
 ## Bandwidth analysis
 
+## Digest parameters
+
+
+
 ## Common CDDL items
 
     ; Enumeration to define integer equivalents for all the digest algorithms
@@ -586,6 +677,7 @@ diff algorithm is used.
     ; this spec, but are included so that we can use this production
     ; whenever we need to refer to a hash function.
     DigestAlgorithm = &(
+        NoDigest : 0,
         SHA1     : 1,     ; deprecated.
         SHA2-256 : 2,
         SHA2-512 : 3,
