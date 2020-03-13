@@ -1,0 +1,106 @@
+Walking onions -- week 2 update
+
+Hi!  On our current grant from the zcash foundation, I'm working on a
+full specification for the Walking Onions design.  I'm going to try to
+send these out thee updates once a week, in case anybody is interested.
+
+My previous updates are linked below:
+
+ Week 1:
+   formats, preliminaries, git repositories, binary diffs,
+   metaformat decisions, and Merkle Tree trickery.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014178.html
+
+You might like to have a look at that update, and its references,
+if this update doesn't make sense to you.
+
+===
+
+This week, I worked specifying the nitty-gritty of the SNIP and
+ENDIVE document formats.  I used the CBOR meta-format [CBOR] to
+build them, and the CDDL specification language [CDDL] to specify
+what they should contain.
+
+As before, I've been working in a git repository at [GITHUB]; you
+can see the document I've been focusing on this week at
+[SNIPFMT].  (That's the thing to read if you want to send me
+patches for my grammar.)
+
+There were a few neat things to do here:
+
+   * I had to define SNIPs so that clients and relays can be
+     mostly agnostic about whether we're using a merkle tree or a
+     bunch of signatures.
+
+   * I had to define a binary diff format so that relays can keep
+     on downloading diffs between ENDIVE documents. (Clients don't
+     download ENDIVEs).  I did a quick prototype of how to output
+     this format, using python's difflib.
+
+   * To make ENDIVE diffs as efficient as possible, it's important
+     not to transmit data that changes in every ENDIVE.  To this
+     end, I've specified ENDIVEs so that the most volatile parts
+     (Merkle trees and index ranges) are recomputed on the relay
+     side.  I still need to specify how these re-computations work,
+     but I'm pretty sure I got the formats right.
+
+     Doing this calculation should save relays a bunch of
+     bandwidth each hour, but cost some implementation complexity.
+     I'm going to have to come back to this choice going forward
+     to see whether it's worth it.
+
+   * Some object types are naturally extensible, some aren't.  I've
+     tried to err on the size of letting us expand important
+     things in the future, and using maps (key->value mappings)
+     for object that are particularly important.
+
+     In CBOR, small integers are encoded with a little less space
+     than small strings.  To that end, I'm specifying the use of
+     small integers for dictionary keys that need to be encoded
+     briefly, and strings for non-tor and experimental extensions.
+
+   * This is a fine opportunity to re-think how we handle document
+     liveness.  Right now, consensus directories have an official
+     liveness interval on them, but parties that rely on
+     consensuses tolerate larger variance than is specified in the
+     consensus.  Instead of that approach, the usable lifetime of
+     each object is now specified in the object, and is ultimately
+     controlled by the authorities.  This gives the directory
+     authorities more ability to work around network tolerance
+     issues.
+
+     Having large lifetime tolerances in the context of walking
+     onions is a little risky: it opens us up to an attack where
+     a hostile relay holds multiple ENDIVEs, and decides which one
+     to use when responding to a request.  I think we can address this
+     attack, however, by making sure that SNIPs have a published
+     time in them, and that this time moves monotonically forward.
+
+   * As I work, I'm identifying other issues in tor that stand in
+     the way of a good efficient walking onion implementation that
+     will require other follow-up work.  This week I ran into a
+     need for non-TAP-based v2 hidden services, and a need for a
+     more efficient family encoding.  I'm keeping track of these
+     in my outline file.
+
+Fun fact: In number of bytes, the walking onions proposal is now
+the 9th-longest proposal in the Tor proposal repository.  And it's
+still growing!
+
+
+Next week, I'm planning to specify ENDIVE reconstruction, circuit
+extension, and maybe start on a specification for voting.
+
+
+[CBOR] RFC 7049: "Concise Binary Object Representation (CBOR)"
+    https://tools.ietf.org/html/rfc7049b
+
+[CDDL] RFC 8610: "Concise Data Definition Language (CDDL): A
+    Notational Convention to Express Concise Binary Object
+    Representation (CBOR) and JSON Data Structures"
+    https://tools.ietf.org/html/rfc8610
+
+[GITREPO]  https://github.com/nmathewson/walking-onions-wip
+
+[SNIPFMT] https://github.com/nmathewson/walking-onions-wip/blob/master/specs/02-endives-and-snips.md

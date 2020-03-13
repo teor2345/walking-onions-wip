@@ -29,6 +29,7 @@ MUST DECIDE BEFORE WRITING TOO MUCH
 
  - How can we prevent relays from deciding which timestamped SNIPs
    to answer with?
+     - (outline: enforce 'published' time moving monotonically forward.)
 
  - Need to do a topology future-proofing.  How does that work?  Probably
    tag indices with groups, SNIPs with groups?
