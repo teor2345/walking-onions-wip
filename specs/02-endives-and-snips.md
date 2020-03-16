@@ -409,6 +409,12 @@ SNIPLocation for that relay exists.
     ; hsdir rings, they are binary strings.
     IndexPos= uint / bstr
 
+A bit more on IndexRanges: If an IndexRange's key is a bstr, then it may
+describe a range of binary values for keys or digests.  It does so by a
+series of prefixes.  For example, the IndexRange `[ h'AB12', h'AB24' ]`
+includes all the binary strings that start with `AB12`, `AB13`, and so on, up
+through all strings that start with `AB24`.
+
 ### SNIPSignature: How to prove a SNIP is in the ENDIVE.
 
 Here we describe the types for implementing SNIP signatures, to be
@@ -581,8 +587,9 @@ for the full algorithm, see section XXXX.
     ; SNIPs.  There may be multiple indexgroups in the case when we want to
     ; have the same relay appear in more than one SNIP with different indices
     ; for some reason.
-    IndexGroup = [
+    IndexGroup = {
         ; A list of all the indices that are built for this index group.
+        ; An IndexIP may appear in at most one group per ENDIVE.
         indices : [ + IndexId ],
         ; A list of keys to delete from SNIPs to build this index group.
         omit_from_snips : [ *(int/tstr) ],
@@ -592,13 +599,13 @@ for the full algorithm, see section XXXX.
 
         ; For experimental and extension use.
         * tstr => any,
-    ]
+    }
 
     ; Enumeration to identify how to generate an index.
     IndexType = &(
         Indextype_Raw : 0,
         Indextype_Weighted : 1,
-        Indextype_RSAID : 2,
+        Indextype_RSAId : 2,
         Indextype_Ed25519Id : 3,
     )
 
@@ -629,9 +636,11 @@ for the full algorithm, see section XXXX.
     ; This index is computed from the RSA identity keys digests of all of the
     ; SNIPs. It is used in the HSv2 directory ring.
     IndexSpec /= {
-        type: Indextype_RSAID,
+        type: Indextype_RSAId,
         ; How many bytes of RSA identity data go into each indexpos entry?
         n_bytes: uint,
+        ; Bitmap of which routers should be included.
+        members : bstr,
     }
     ; This index is computed from the Ed25519 identity keys of all of the
     ; SNIPs.  It is used in the HSv3 directory ring.
@@ -645,6 +654,8 @@ for the full algorithm, see section XXXX.
         prefix : bstr,
         ; What bytes do we give to the hash after the ed25519?
         suffix : bstr,
+        ; Bitmap of which routers should be included.
+        members : bstr,
     }
 
     ; Information about a single router in an ENDIVE.
