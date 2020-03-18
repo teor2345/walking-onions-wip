@@ -28,7 +28,7 @@ further on each step later on.
 ## Computing index positions.
 
 For every IndexId in every Index Group, the relay will compute the
-full routing index.  A routing index is an ordered mapping from
+full routing index.  A routing index is a mapping from
 index position ranges (represented as 2-tuples) to relays, where the
 relays are represented as ENDIVERouterData members of the ENDIVE.  The
 routing index must cover all possible values of the index.
@@ -57,7 +57,7 @@ directly in the IndexSpec.
 
     Algorithm: Expanding a "Raw" indexspec.
 
-    Let result_idx = {} (an empty ordered mapping).
+    Let result_idx = {} (an empty mapping).
 
     Let previous_pos = Nil.
 
@@ -99,7 +99,7 @@ It requires that the sum of weights is no more than UINT32_MAX.
 
     Let total_so_far = 0.
 
-    Let result_idx = {} (an empty ordered mapping).
+    Let result_idx = {} (an empty mapping).
 
     Define POS(b) = FLOOR( (b << 32) / total_weight).
 
@@ -211,8 +211,33 @@ derivitives.
 
 ### Building a SNIPLocation
 
-Once the XXXX
+After all the indices in an IndexGroups, they are combined into a series of
+SNIPLocation objects. Each SNIPLocation should MUST contain all the IndexId
+=> IndexRange entries that point to a given ENDIVERouterData, for the
+IndexIds listed in an IndexGroup.
 
+    Algorithm: Build a list of SNIPLocation from a set of routing indices.
+
+    Initialize R as [ { } ] * LEN(relays)   (A list of empty maps)
+
+    For each IndexId "ID" in the IndexGroup:
+
+       Let router_idx be the index map calculated for ID.
+       (This is what we computed previously.)
+
+       For each entry ( (LO, HI) => idx) in router_idx:
+
+          Let R[idx][ID] = (LO, HI).
+
+SNIPLocation objects are thus organized in the order in which they will
+appear in the Merkle tree: that is, sorted by the index of their
+corresponding ENDIVERouterData.
+
+Because SNIPLocation objects are signed, they must be encoded as "canonical"
+cbor, according to section 3.9 of RFC 7049.
+
+If R[idx] is {} (the empty map) for any given idx, then no SNIP will be
+generated for the SNIPRouterData at that index for this index group.
 
 ## Computing truncated SNIPRouterData.
 
@@ -220,10 +245,100 @@ An index group can include an `omit_from_snips` field to indicate that
 certain fields from a SNIPRouterData should not be included in the
 SNIPs for that index group.
 
-XXXX
+Since a SNIPRouterData needs to be signed, this process has to be be
+deterministic.  Thus, the truncated SNIPRouterData should be computed by
+removing the keys and values for EXACTLY the keys listed and no more.  The
+remaining keys MUST be left in the same order that they appeared in the
+original SNIPRouterData, and they MUST NOT be re-encoded.
+
+(Two keys are "the same" if and only if they are integers encoding the same
+value, or text strings with the same UT-8 content.)
+
+There is no need to compute a SNIPRouterData when no SNIP is going to be
+generated for a given router.
 
 ## Building the Merkle tree.
 
+After computing a list of (SNIPLocation, SNIPRouterData) for every entry
+in an index group, the relay needs to expand a Merkle tree to
+authenticate every SNIP.
+
+There are two steps here: First the relay generates the leaves, and then
+it generates the intermediate hashes.
+
+To generate the list of leaves for an index group, the relay first
+removes all entries from the (SNIPLocation, SNIPRouterData) list that
+have an empty index map.  The relay then puts `n_padding_entries` "nil"
+entries at the end of the list.
+
+To generate the list of leaves for the whole Merkle tree, the relay
+concatenates these index group lists in the order in which they appear
+in the ENDIVE, and pads the resulting list with "nil" entries until the
+length of the list is a power of two: 2^`tree-depth` for some integer
+`tree-depth`.  Let LEAF(IDX) denote the entry at position IDX in this
+list, where IDX is a D-bit bitstring.  LEAF(IDX) is either a byte string
+or nil.
+
+The relay then recursively computes the hashes in the Merkle tree as
+follows.  (Recall from that `H_node()` and `H_leaf()` are hashes taking
+a bit-string PATH, a LIFESPAN and NONCE from the signature information,
+and a variable-length string ITEM.)
+
+    Recursive defintion: HM(PATH)
+
+    Given PATH a bitstring of length no more than tree-depth.
+
+    Define S:
+        S(nil) = an all-0 string of the same length as the hash output.
+        S(x) = x, for all other x.
+
+    If LEN(PATH) = tree-depth:   (Leaf case.)
+       If LEAF(PATH) = nil:
+         HM(PATH) = nil.
+       Else:
+         HM(PATH) = H_node(PATH, LIFESPAN, NONCE, LEAF(PATH)).
+
+    Else:
+       Let LEFT = HM(PATH || 0)
+       Let LIGHT = HM(PATH || 1)
+       If LEFT = nil and RIGHT = nil:
+           HM(PATH) = nil
+       else:
+           HM(PATH) = H_node(PATH, LIFESPAN, NONCE, S(LEFT) || S(RIGHT))
+
+Note that entries aren't computed for "nil" leaves, or any node all of
+whose children are "nil".  The "nil" entries only exist to place all
+leaves at a constant depth, and to enable spacing out different sections
+of the tree.
+
+If `siganture-depth` from the ENDIVE is N, the relay does not need to
+compute any merkle tree entries for PATHs of length greater than N bits.
+
+## Assembling the SNIPs
+
+Finally, the relay has computed a list of encoded (SNIPLocation,
+RouterData) values, and a Merkle tree to authenticate them.  At this
+point, the relay builds them into SNIPs, using the `sig_params` and
+`signatures` from the ENDIVE.
+
+    Algorithm: Building a SNIPSignature for a SNIP.
+
+    Given a non-nil (SNIPLocation, RouterData) at leaf position PATH.
+
+    Let SIG_IDX = PATH, truncated to signature-depth bits.
+    Consider SIG_IDX as an integer.
+
+    Let Sig = signatures[SIG_IDX] -- either the SingleSig or the MultiSig
+    for this snip.
+
+    Let HashPath = []   (an emtpy list).
+    For bitlen = signature-depth+1 ... tree-depth-1:
+        Let X = PATH, truncated to bitlen bits.
+        Invert the final bit of PATH.
+        Append HM(PATH) to HashPath.
+
+    The SnipSignature's signature values is Sig, and its merkle_path is
+    HashPath.
 
 ## Implementation considerations
 

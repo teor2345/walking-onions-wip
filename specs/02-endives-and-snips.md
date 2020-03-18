@@ -130,6 +130,9 @@ The authentication on a single snip is structured, in the abstract, as:
      multisignature) of a top-level digest.
    - NONCE: an optional nonce for use with the hash functions.
 
+Note that PATH here is a bitstring, not an integer! "0001" and "01" are
+different paths, and "" is a valid path, indicating the root of the tree.
+
 We assume two hash functions here: `H_leaf()` to be used with leaf
 items, and `H_node()` to be used with intermediate nodes.  These functions
 are parameterized with a path through the tree, with a nonce, and with
