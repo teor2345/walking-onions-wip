@@ -7,9 +7,9 @@ download diffs rather than entire ENDIVEs.  The ENDIVE format makes
 several choices in order to make these diffs small: the Merkle tree
 is omitted, and routing indices are not included directly.
 
-To address these issues, this describe the steps that a relay
-needs to follow, upon receiving an ENDIVE document, to derive all
-the SNIPs for that ENDIVE. 
+To address these issues, this document describe the steps that a
+relay needs to performs, upon receiving an ENDIVE document, to derive
+all the SNIPs for that ENDIVE.
 
 Here are the steps to be followed.  I'll describe them in order,
 though in practice they could be pipelined somewhat.  I'll expand
@@ -41,7 +41,8 @@ Every index may either have an integer key, or a binary-string
 key. We define the "successor" of an integer index as
 the succeeding integer.  We define the "successor" of a binary
 string as the next binary string of the same length in lexical
-(memcmp) order.
+(memcmp) order.  We define "predecessor" as the inverse of
+"successor".
 
 The algorithms here describe a set of invariants that are
 "verified".  Relays SHOULD check each of these invariants;
@@ -129,7 +130,9 @@ feature.
 
     Algorithm: Expanding an "RSAId" indexspec.
 
-    Let R = [ ], an empty list.
+    Let R = [ ] (an empty list).
+
+    Take the value n_bytes from the IndexSpec.
 
     For 0 <= b_idx < MIN( LEN(indexspec.members) * 8,
                           LEN(list of ENDIVERouterData) ):
@@ -141,20 +144,74 @@ feature.
 
            Verify that m has its RSAIdentityFingerprint set.
 
-           Add m to the list R.
+           Let pos = m.RSAIdentityFingerprint, truncated to n_bytes.
 
-    Sort R by RSAIdentityFingerprint in ascending order.
+           Add (m, pos, b_idx) to the list R.
 
-    For each member m of the list R:
+    Return INDEX_FROM_RING_KEYS(R).
 
-        XXXX
+
+    Sub-Algorithm: INDEX_FROM_RANGE_KEYS(R)
+
+    First, sort R according to its 'pos' field.
+
+    For each member (m, pos, idx) of the list R:
+
+        Let key_low = pos
+
+        If this is the last member of the list R:
+            Let key_next = pos for the next member of R.
+
+            Let key_high = the precessor of key_next.
+        else:
+            Let key_high = 0xFFFFFFFF...., truncated to n_bytes.
+
+        If key_high >= key_low:
+            Add (key_low, key_high) => idx to result_idx.
+
+    Return result_idx.
+
 
 ### Ed25519 indices
 
-XXXX
+If the IndexSpec type is Indextype_RSAId then the index is a set of
+binary strings describing the routers' positions in a hash ring,
+derived from their Ed25519 identity keys.
 
+This algorithm is a generalization of the one used for hsv3 rings,
+to be used to compute the hsv3 ring and other possible future
+derivitives.
 
-### Computing a SNIPLocation
+    Algorithm: Expanding an "Ed25519Id" indexspec.
+
+    Let R = [ ] (an empty list).
+
+    Take the values prefix, suffix, and n_bytes from the IndexSpec.
+
+    Let H() be the digest algorithm specified by d_alg from the
+    IndexSpec.
+
+    For 0 <= b_idx < MIN( LEN(indexspec.members) * 8,
+                          LEN(list of ENDIVERouterData) ):
+
+       Let b = the b_idx'th bit of indexspec.members.
+
+       If b is 1:
+           Let m = the b_idx'th member of the ENDIVERouterData list.
+
+           Let key = m's ed25519 identity key, as a 32-byte value.
+
+           Compute pos = H(prefix || suffix || key)
+
+           Truncate pos to n_bytes.
+
+           Add (m, b_idx, pos) to the list R.
+
+    Return INDEX_FROM_RING_KEYS(R).
+
+### Building a SNIPLocation
+
+Once the XXXX
 
 
 ## Computing truncated SNIPRouterData.
