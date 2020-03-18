@@ -553,6 +553,8 @@ for the full algorithm, see section XXXX.
             ; (If this value is 0, then only the root of the tree is signed.
             ; If this value is >= ceil(log2(n_leaves)), then every leaf is
             ; signed.).
+            ; XXXX Do we want to make this more flexible and allow signatures
+            ; XXXX at different depths?
             signature-depth : uint,
 
             ; What digest algorithm is used for calculating the signatures?
@@ -593,6 +595,11 @@ for the full algorithm, see section XXXX.
         indices : [ + IndexId ],
         ; A list of keys to delete from SNIPs to build this index group.
         omit_from_snips : [ *(int/tstr) ],
+
+        ; A number of "gaps" to place in the Merkle tree after the SNIPs
+        ; in this group.  This can be used together with signature-depth
+        ; to give different index-groups independent signatures.
+        ? n_padding_entries : uint,
 
         ; A detailed description of how to build the index.
         + IndexId => IndexSpec,
