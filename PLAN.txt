@@ -11,16 +11,19 @@ Identify decisions to take before writing in each area.
 
 Loose outline for proposals. (done v1)
 
+
+Draft ENDIVE design (done)
+
+Draft ENDIVE reconstruction. (done)
+
 ==============================
 
 NEED TO DIVIDE THESE BY TWO OR ELSE I DON'T FINISH IN MARCH?
 
-Draft ENDIVE design  (finish today)
 
 Draft Authority operation (1 day)
 
-Draft ENDIVE transfer and reconstruction. (1 day)
-
+Draft ENDIVE transfer (1 day)
 Draft Extending circuits (1 day)
 
 Draft : root document????? (0.5 day)
