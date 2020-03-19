@@ -1,0 +1,51 @@
+How does voting work????
+
+
+Let's try to do it the same way as we do it with microdescs consensuses
+and voting now, and see whether any changes are needed.
+
+Do we have a dual format for legacy voting?
+
+
+Maybe we can stick the _best_ microdescriptor format for each authority in the
+vote, along with the hashes of the others.  Helps votes, and ensures
+you've got what you need.
+
+Then maybe we can think about a "unified" consensus that contains
+microdescriptor text.  Using diffs to transfer should make that cheap?
+Ish?  Would be another issue though.
+
+We could do the same thing about authority certs; they are very
+diff-friendly too. (Wait, we _do_ stick authority certs in votes.)
+
+Some kind of chunked encoding/transfer might be smart.
+
+Vote as now: build ENDIVE as follows:
+
+     - IndexGroups are:
+
+XXXX
+
+     - ENDIVERouterBody are:
+
+XXX
+
+     - then run reconstruction algorithm to find hash roots, and sign!
+
+
+============================================================
+
+How does transfer work????
+
+Can we just tread ENDIVEs like a kind of consensus and use the same
+stuff, with X-or-diff-from replaced with X-or-cbor-diff-from?  I hope
+so.
+
+Same list-of-keys thing or a different one?
+
+Do we stick more certificates in ENDIVEs?  If we have and use diffs then we
+don't need separate certs.
+
+============================================================
+
+
