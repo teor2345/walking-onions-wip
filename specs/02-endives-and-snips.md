@@ -740,10 +740,9 @@ and apply it.
     DiffCommand = [
         OrigBytesCmdId,
         ; Range of bytes to copy from the original document.
-        ; Ranges include their starting byte, but do not include their
-        ; ending byte.
-        start : uint,
-        end : uint,
+        ; Ranges include their starting byte.
+        start : uint, ; XXXX we could have this be relative; would it help?
+        length : uint,
     ]
     ; XXXX would it make sense to have relative/absolute versions of the
     ; above to make the numbers smaller?
@@ -768,7 +767,7 @@ Applying a binary diff is simple:
     For each command C in D.commands, in order:
 
         If C begins with OrigBytesCmdId:
-            Append INP[C.start .. C.end] to OUT.
+            Append INP[C.start .. C.start+C.length] to OUT.
 
         else: # C begins with InsertBytesCmdId:
             Append C.bytes to OUT.
