@@ -1,0 +1,23 @@
+From Teor:
+
+
+> I'm not sure if you've got to exit ports yet, but here's one possible
+> way to partition ports:
+> * choose large partitions so that all exits support all ports in the
+>   partition
+> * choose smaller categories so that most exits support most ports
+>   in the partition
+> * ignore small partitions, they're bad for client privacy anyway
+>
+> For example, you might end up with:
+> * web (80 & 443)
+> * interactive (SSH, IRC, etc.)
+> * bulk (torrent, etc.)
+> * default exit policy
+> * reduced exit policy
+>
+> I'm not sure if we will want separate categories for IPv4-only
+> and dual-stack policies. We can probably ignore IPv6-only
+> policies for the moment, but we should think about them in
+> future.
+
