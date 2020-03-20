@@ -50,6 +50,9 @@ authorities MUST NOT generate any ENDIVEs that violate them.  If a
 relay encounters an ENDIVE that cannot be verified, then the ENDIVE
 cannot be expended.
 
+XXXX should there be some way to define an index as a subset of another
+XXXX index, with elements weighted in different ways?
+
 ### Raw indices
 
 When the IndexType is Idextype_Raw, then its members are listed
@@ -117,6 +120,16 @@ It requires that the sum of weights is no more than UINT32_MAX.
 
     Return result_idx.
 
+### Derived weighted indices
+
+XXXX We could possibly simplify weighted indices by specifying that one
+XXXX is derived from another by multiplying the weights by a vector of just a
+XXXX few possible multipliers.  eg, "0, Wge, Wme, Wbe" as possible multiples.
+
+### Copying indices
+
+XXXX We could possibly want a way to say "these two indices are the same",
+XXXX here and in SNIPs.
 
 ### RSAId indices
 

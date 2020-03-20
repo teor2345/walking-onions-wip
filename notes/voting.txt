@@ -24,20 +24,36 @@ Vote as now: build ENDIVE as follows:
 
      - IndexGroups are:
 
-XXXX
+        Guard (v4)
+        Guard (v4+v6)
+        Guard (v6)
+        Middle
+                 (can use for rendezvous, intro?)
+
+        Exit (web)
+        Exit (web+)
+        Exit (???) # xxxx todo figure out more
+        HSDir2
+        HSDir3
+        HSDir3-alt
+
+        Dircache?
+
 
      - ENDIVERouterBody are:
 
-XXX
 
      - then run reconstruction algorithm to find hash roots, and sign!
 
+
+!!!! Should there be some way to specify an index as a subset of another
+     index?
 
 ============================================================
 
 How does transfer work????
 
-Can we just tread ENDIVEs like a kind of consensus and use the same
+Can we just treat ENDIVEs like a kind of consensus and use the same
 stuff, with X-or-diff-from replaced with X-or-cbor-diff-from?  I hope
 so.
 
@@ -49,3 +65,87 @@ don't need separate certs.
 ============================================================
 
 
+to stick mds in votes:
+use md+ notation.
+
+
+============================================================
+
+Is it time to define a dual format for CBOR votes, or do I stick with
+legacy format?
+
+not sure.  eventually we'd want cbor for everything, right, so we ought to
+push it down the stack.  But wow there are a lot of documents here.
+
+
+============================================================
+
+If we derive the endive from a text vote extensibility gets a bit tricky
+without introducing new voting protocols.
+
+Could use microdesc-style voting for this, including multiple versions of the
+SNIPRouterData.
+
+============================================================
+
+vote diffs -- any point?  could do later.
+
+==============================
+
+Can't do ENDIVES till a majority of authorities are updated anyway. So why
+not 'redo from start?'
+
+Tricky to specify though.
+
+But!  Could specify alternative format.
+
+  SignedDirectoryDocument = [
+     Signature,
+     Body .cbor DirectoryDocument,
+  ]
+
+  DirectoryDocument = [
+     Header,
+     Body,
+     Coda,
+   ]
+
+   Header = [ *Line ];
+   Body = [ *Section ];
+   Section = [ *Line ];
+   Code = [ *Line ];
+
+   Line = [ tstr, *Item ];
+   Item = int / bstr / tstr;
+
+
+main idea of this: incorporate most of previous voting algorithm by
+reference, while using a nwe format?
+
+using new format would make it easier to actually specify what we're
+voting on, and we wouldn't need to specify all the transformations. But
+old format would be neater for old votes to make older things.
+
+itemize all things that are voted on, and make general rule for them?
+
+eg, "we vote on an x as if it were a y."
+
+this is not trivial but it's sensible and would -simplify- the code a
+little.  at that point we'd need to specify the encoding for mds and
+consensuses, but that would not be so hard?  i hope?
+
+======================================================================
+
+how to vote on indices?  some are just bws.  vote on those like we do
+now, take the median.
+
+Hardcode ed25519 and rsa.
+
+Others are defined based on other indices or the bws. could hardcode
+those formulas, or could introduce a voting mechanism for them.
+
+could hardcode for now, then vote later?
+
+======================================================================
+
+not trivial AT ALL.

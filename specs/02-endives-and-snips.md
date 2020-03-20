@@ -527,6 +527,9 @@ for the full algorithm, see section XXXX.
         body: bstr .cbor ENDIVEContent,
     ]
 
+    ; XXXX do we want to do anything equivalent to current authority key
+    ; XXXX certs, or does that go into a root document?
+
     ENDIVESignature = [
         ; The actual signatures on the endive. A multisignature is the
         ; likeliest format here.
