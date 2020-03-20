@@ -270,9 +270,9 @@ microdescriptor entries of today, but tries to omit a number of
 obsolete fields, including RSA identity fingerprint, TAP key,
 published time, etc.
 
-XXXX I expect that we'll be making more changes to this type than
-to any other type as we review and revise this design. It may turn
-out to omit things that we need.
+> XXXX I expect that we'll be making more changes to this type than
+> to any other type as we review and revise this design. It may turn
+> out to omit things that we need.
 
     ; A SNIPRouterData is a map from integer keys to values for
     ; those key.
@@ -597,7 +597,7 @@ for the full algorithm, see section XXXX.
     ; for some reason.
     IndexGroup = {
         ; A list of all the indices that are built for this index group.
-        ; An IndexIP may appear in at most one group per ENDIVE.
+        ; An IndexId may appear in at most one group per ENDIVE.
         indices : [ + IndexId ],
         ; A list of keys to delete from SNIPs to build this index group.
         omit_from_snips : [ *(int/tstr) ],
@@ -704,7 +704,7 @@ Let lifetime on these be long-ish.
 
 Mostly same stuff as current header/footer of consensus.
 
-XXXXX
+XXXX
 
 
 ## ENDIVE diffs

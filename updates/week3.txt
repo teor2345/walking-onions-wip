@@ -1,0 +1,141 @@
+Walking Onions: week 3 update
+
+ On our current grant from the zcash foundation, I'm working on a
+full specification for the Walking Onions design.  I'm going to try to
+send out these updates once a week.
+
+My previous updates are linked below:
+
+ Week 1:
+   formats, preliminaries, git repositories, binary diffs,
+   metaformat decisions, and Merkle Tree trickery.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014178.html
+
+ Week 2:
+   Specifying details of SNIP and ENDIVE formats, in CDDL.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014181.html
+
+You might like to check out those updates, and their references,
+if this update doesn't make sense to you.
+
+===
+
+As you might recall, the SNIPs need to be nice and small, but they
+need to be completely self-contained.  The ENDIVE, on the other
+hand, needs to be diff-friendly, and compressible.  Relays need to
+derive all the SNIPs from the ENDIVE.  The ENDIVE and SNIP formats
+that I worked on during last week [SNIPFMT] was designed to meet these
+criteria.
+
+This week, I wrote up the algorithms to extract signed SNIPs from an
+ENDIVE.  This is in section 4 [RECONST] of the specs in my
+work-in-progress repository [GITREPO] This was mainly straightforward
+consequence from the work I did last week, but there were a few
+things that turned up.
+
+One trickier aspect of this work is that we want to move most of the
+decision-making to the authorities, and have the relays simply do an
+expansion algorithm.  Updating all the relays would be slow, so relays
+need to be able to handle new index types and data types without
+fully understanding them.  That means that we need to specify an
+algorithm that can work flexibly with many future kinds of data.
+
+Another tricky aspect is that the data which the relays need to put
+into SNIPs all needs to be signed, so all of that data needs to come
+out the same when relays calculate it as the when the authorities
+calculate it. Thus, all the algorithms for building Merkle trees and
+indices and SNIPRouterData bodies need to be deterministic.
+
+I think that I got all of this relatively right in [RECONST], but
+there are probably some mistakes hiding in there.
+
+I'm hoping that there is a cleaner alternative to the weighted-index
+reconstruction algorithm -- the one that's there right now puts a
+lot of requirements on the input data, in order to avoid
+floating-point operations.
+
+===
+
+After working on ENDIVE expansion, I moved on to the problem of
+authorities voting.  There's a lot of uncertainty here and decisions
+I'll need to make.
+
+The biggest decision is how the new voting process for ENDIVEs
+should relate to the current voting process for consensus documents.
+The choices seem to be:
+
+   * Have two processes with different kinds of votes.
+   * Expand the information that goes into current votes, and
+     generate ENDIVEs as a new kind of consensus from the current
+     voting process.
+   * Design the ENDIVE voting process so that it can also be used to
+     generate current-style consensuses.
+
+Using separate processes might be simplest, but it does carry risk
+for duplicated code, and for the two voting processes reaching
+divergent results.  It would also be potentially bad if an authority
+could vote differently in each process.
+
+The second approach -- where ENDIVEs are another kind of consensus
+generated from current-style voting documents -- has some charm to
+it, but it perpetuates our current consensus-voting system, and
+makes us specify a second encoding of CBOR objects as text, if we
+want to vote on them meaningfully.  This is a bit nasty, since the
+standard-specified text encoding of cbor is not a bijection, and
+doesn't mesh too well with our old directory format.
+
+Therefore the third approach seems a little better to me now.  In
+it, we'd specify our votes as a CBOR-based format loosely based on
+the current vote format, and describe a way to extract from them the
+same data that is currently used for our voting algorithm.  This
+would let us encode CBOR within the document naturally, while not
+having to throw away too much of our existing voting specification
+and voting code.
+
+I've got a few more ideas here, though I don't have any specs yet.
+I've been collecting the ideas in a notes file [VNOTES] so I don't
+forget them.
+
+===
+
+While working on voting notes, I found some areas where the ENDIVE
+and SNIP formats might be better.
+
+First, I hadn't thought about authority certificates.  Those should
+go in, so that we can have the ENDIVE-signing keys be signed
+themselves with the authorities' long-lived identities.
+
+Second, there seem to be some opportunities for transmitting indices
+in a simpler way.  Instead of assigning a weight to each router
+separately, for example, we could derive one weighted index from
+another weighted index by re-weighting it, as we do with the
+"bandwidth-weights" values in the current consensus.
+
+Teor also made some good suggestions for improving the diff format;
+I incorporated one and made a note to check the other.
+
+===
+
+I also spent a little while this week reading about BLS signatures,
+since they are the leading candidate for how we might do threshold
+signatures here.
+
+===
+
+Next week I'm going to try to get voting all specified. This will be
+a pretty deep dive, since I will need to maintain some backward
+compatibility with existing voting algorithms.  There may be
+opportunities for simplification, however.
+
+
+===
+
+[GITREPO]  https://github.com/nmathewson/walking-onions-wip
+
+[RECONST] https://github.com/nmathewson/walking-onions-wip/blob/master/specs/04-reconstructing-endives.m d
+
+[SNIPFMT] https://github.com/nmathewson/walking-onions-wip/blob/master/specs/02-endives-and-snips.md
+
+[VNOTES] https://github.com/nmathewson/walking-onions-wip/blob/master/notes/voting.txt
