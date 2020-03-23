@@ -541,9 +541,18 @@ for the full algorithm, see section XXXX.
         ; of the lifespan of its SNIPs.
         LifespanInfo,
 
+        ; Signatures across SNIPs, at some level of the Merkle tree.  Note
+        ; that these signatures are not themselves signed -- having them
+        ; signed would take another step in the voting algorithm.
+        DetachedSNIPSignatures,
+
         ; extensions for later use. These are not signed.
         ? extensions : { any => any },
     ]
+
+    ; A list of single signatures or a list of multisignatures. This
+    ; list must have 2^signature-depth elements.
+    DetachedSNIPSignatures = [ *SingleSig ] / [ *MultiSig ];
 
     ENDIVEContent = {
 
@@ -569,13 +578,6 @@ for the full algorithm, see section XXXX.
             ; reserved for future extensions.
             * tstr => any,
         }
-
-        ; A list of single signatures or a list of multisignatures. This
-        ; list must have 2^signature-depth elements.
-
-        ; XXXX either we need an extra voting step, OR we need to move these
-        ; XXXX outside of the signed material.
-        signatures : [ *SingleSig ] / [ *MultiSig ],
 
         ; Definitions for index group.  Each "index group" is all
         ; applied to the same SNIPs.  (If there is one index group,
