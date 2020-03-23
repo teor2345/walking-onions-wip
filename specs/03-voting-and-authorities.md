@@ -105,6 +105,70 @@ that item is said to be a "legacy item".  Legacy items are in a
 limited format, and contain a small set of tags indicating how they
 are to be formatted.
 
+    VoteDocument = [
+        sig : [ + SingleSig ],
+        lifetime : LifespanInfo,
+        body : bstr .cbor VoteContent
+    ]
+
+    VoteContent = {
+        voter : VoterSection,
+        meta : MetaSection .within VoteableSection,
+        root : RootSection .within VoteableSection,
+        relays : RelaySection,
+        indices : IndexSection,
+        * tstr => any
+    }
+
+    VoterSection = {
+        name : tstr,
+        ? ul : [ *LinkSpec ]
+        ? dl : [ *LinkSpec ],
+        ? contact : tstr,
+        cert : VoterCert,
+        ? legacy-cert : tstr,
+    }
+
+    MetaSection = {
+       * tstr => Voteable
+    };
+
+    RootSection = {
+       * tstr => Voteable
+    }
+
+    RelaySection = {
+       * bstr => RelayInfo .within VotingRule,
+    }
+
+    RelayInfo = [
+       meta : RelayMetaInfo,
+       snip : RelaySNIPInfo,
+       ? legacy : RelayLegacyInfo,
+    ]
+
+    // ==========
+
+    VoteableSection = {
+        * tstr => Voteable
+    }
+
+    Voteable = [
+       rule : VotingRule,
+       content : any
+    ]
+
+    VotingRule = &(
+       None          : 0,
+       Special       : 1,
+       Median        : 2,
+       LowMode       : 3,
+       HighMode      : 4,
+       Intersect     : 5,
+    )
+    
+
+
 XXX have to : make root document
 
 XXXsay how to : vote.
@@ -113,9 +177,18 @@ XXX say how to : sign.
 
 Kinds of voting rule: low-mode, high-mode, median.
 
-"A foo is present if at least half of authorities vote on foo and
+xx "A foo is present if at least half of authorities vote on foo and
 specify the same voting rule for it.  The value of the foo is
 determined by that voting rule."
+
+xx In endive need to vote on what the snips contents are, what the
+adjunct data are, how each index works.  because of eliding, only
+need to have rules for one data element per relay.  but if a new
+data item is added in, what happens? does that get included or
+excluded? let's say majority in both cases decide.
+
+xx let's say that consensus method 100 is the first one for walking
+onions
 
 
 ## Deriving older vote formats.
@@ -127,6 +200,10 @@ determined by that voting rule."
 ## Managing indices over time.
 
 XXXX
+
+index groups could be fixed; that might be best at first. we could
+reserve new methods for allocating new ones.
+
 
 
 ## Bandwidth analysis
