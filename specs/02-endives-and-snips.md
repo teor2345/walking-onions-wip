@@ -572,6 +572,9 @@ for the full algorithm, see section XXXX.
 
         ; A list of single signatures or a list of multisignatures. This
         ; list must have 2^signature-depth elements.
+
+        ; XXXX either we need an extra voting step, OR we need to move these
+        ; XXXX outside of the signed material.
         signatures : [ *SingleSig ] / [ *MultiSig ],
 
         ; Definitions for index group.  Each "index group" is all
