@@ -1,0 +1,89 @@
+
+# Extending circuits with Walking Onions
+
+When a client wants to extend a circuit, there are several
+possibilities.  It might need to extend to an unknown relay with
+specific properties.  It might need to extend to a particular relay
+from which it has received a SNIP before.  In both cases, there are
+changes to be made in the circuit extension process.
+
+## Modifying the EXTEND/CREATE handshake
+
+First, we will require that proposal 249 (or some similar proposal
+for wide CREATE and EXTEND cells) is in place, so that we can have
+EXTEND cells larger than can fit in a single cell.
+
+We define an EXTEND variant for use here: the EXTEND cell is as
+before, but the EXTENDED cell now contains information from the
+extending relay, as well the CREATED cell from the target relay.
+> XXX how to encode? need new cell type?
+
+
+> XXX Need a CREATE cell that optionally tells the target relay what
+> XXX B to use from the SNIP.
+
+> XXX incorporate hybrid handshake?
+
+### New link specifiers
+
+We add a new link specifier type [XX hex id here] for a router
+index, using the following coding for its contents:
+
+    /* Using trunnel syntax here. */
+    struct snip_index {
+        u16 index_id; // which index is it?
+        u8 index[]; // extends to the end of the index
+    }
+
+Any number of these link specifiers may appear in an EXTEND cell.
+If there is more then one, then they should appear in order of
+client preference; the extending relay may extend to any of the
+listed routers.
+
+This link specifier SHOULD NOT be used with IPv4, IPv6, RSA ID, or
+Ed25519 ID link specifiers.  Relays receiving such a link along with
+a snip_index link specifier SHOULD reject the entire EXTEND request.
+
+> XXX I'm avoiding use of cbor for these types. Is that correct? I
+>  think so, on the theory that there is no.
+
+## Modified ntor handshake
+
+We adapt the ntor handsake from tor-spec.txt for this use, with the
+following main changes:
+
+>XXX revise notes below
+
+ - drop requirement for NODEID in outgoing handshake; make KEYID optional.
+
+ - in response include KEYID and NODEID.
+
+ - optionally have encrypted section as with rend-spec.
+
+
+
+## GET_SNIP handshake type
+
+> XXX revise
+
+new handshake type that only gets a snip.  in extend, it returns a
+snip without doing any extend.  In create, it returns a snip without
+doing any extend and circid must be 0.  the created/extended body is
+the SNIP.
+
+## Client operations: Extending by property and index.
+
+We introduce a new link specifier for extending a circuit to a
+particular location in a relay index for the current ENDIVE.
+
+xXXX
+
+## Client operations: Extending to a relay with known SNIP
+
+XXXX
+
+## Relay operations: Responding to EXTEND cells
+
+XXXX
+
+
