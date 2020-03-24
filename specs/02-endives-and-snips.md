@@ -441,7 +441,7 @@ validated as described in "Design overview: Authentication" above.
         ? nonce : bstr,
 
         ; extensions for later use. These are not signed.
-        ? extensions : { any => any },
+        ? extensions : { * any => any },
     ]
 
     ; We use this group to indicate when an object originated, and when
@@ -547,7 +547,7 @@ for the full algorithm, see section XXXX.
         DetachedSNIPSignatures,
 
         ; extensions for later use. These are not signed.
-        ? extensions : { any => any },
+        ? extensions : { * any => any },
     ]
 
     ; A list of single signatures or a list of multisignatures. This
