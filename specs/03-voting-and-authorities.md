@@ -94,6 +94,108 @@ appropriate.
 > right for this, since Accept-Vote-Diffs-From does not fit with its
 > semantics.
 
+## Primitives for voting
+
+Unlike with previous versions of our voting specification, here I'm
+going to try to describe pieces the voting algorithm in terms of simpler
+voting operations.  Each voting operation will be named, and data will
+frequently self-describe what voting operation is to be used on it.
+
+A voting operation takes place over a "voteable field".  Each voteable
+field will have a distinct identity within a given context.  For each
+voteable field, each authority may vote at most once.  The vote for a
+field may be an integer, a boolean, a binary string, a text string.  The
+vote for a field may also be a list of integers, booleans, binary
+strings, text strings, or nil.
+
+Voting operations may be implicit, in which case they are specified
+here, or explicit, in which case they are specified in the vote.
+
+Each voting operation will either produce an output or a lack of
+consensus.
+
+Unless otherwise specified, there is no consensus for a voting operation
+unless more than half of the authorities have voted on the field.  There
+is also no consensus if the voting operation for the field is explicit,
+and fewer than half of the authorities have agreed on the same voting
+operation.
+
+Individual voting operations are listed below.  In the descriptions
+below, "more than half" is to be interpreted strictly: "more than half
+of two" for example, means "at least 1", not "one or more".
+
+The following constants are defined:
+
+`N_AUTH` -- the total number of authorities, including those whose votes
+are absent.
+
+`N_VOTE` -- the total number of authorities whose votes are present for
+this vote.
+
+`QUORUM` -- The lowest integer that is greater than half of
+`N_AUTH`.  Equivalent to CEIL( (N_AUTH+1)/2 ).
+
+
+### IntMedian
+
+Discard all non-Integer votes.  To take the 'median' of a set of N
+integer votes, first put them in ascending sorted order.  If N is odd,
+take the center vote (the one at position (N+1)/2).  If N is even, take
+the lower of the two center votes (the one at position N/2).
+
+For example, the IntMedian of the votes ["String", 2, 111, 6] is 6.
+The IntMedian of the votes ["String", 77, 9, 22, "String", 3] is 9.
+
+### FirstMode
+
+Discard all votes that are not booleans, integers, byte strings, or text
+strings. Find the most frequent value in the votes.  If there is a tie,
+break ties in favor of lower values.  (Sort by cbor canonical order.)
+
+### LastMode
+
+As FirstMode, but break ties in favor of higher values.
+
+### IntMean
+
+Discard all non-Integer votes.  To take the integer 'mean' of a set of N
+integer votes, compute FLOOR(SUM(votes)/N).
+
+For example, the IntMean of [7, 99, 11, 6, 9] is 26.
+
+### Intersection
+
+Discard all votes that are not lists.  From each list, remove values
+that are not booleans, integers, byte strings, or text strings.
+
+To take the "Intersection" of the resulting lists, construct a list
+containing exactly those elements that are listed in more than half of
+the input lists, once each.  Sort this list in canonical cbor order.
+
+>XXXX maybe there should be a parameter indicating "must appear in at
+>least N?""
+
+### Union
+
+Discard all votes that are not lists.  From each list, remove values
+that are not booleans, integers, byte strings, or text strings.
+
+To take the "Union" of the resulting lists, construct a list containing
+exactly those elements that are listed in any of the input lists, once
+each. Sort this list in canonical cbor order.
+
+>XXXX maybe there should be a parameter indicating "must appear in at
+>least N?""
+
+### Special
+
+### None
+
+
+
+
+
+
 ## A CBOR-based metaformat for votes.
 
 A vote is a signed document containing a number of sections; each
