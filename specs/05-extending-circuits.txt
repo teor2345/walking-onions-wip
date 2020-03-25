@@ -16,8 +16,10 @@ EXTEND cells larger than can fit in a single cell.
 We define an EXTEND variant for use here: the EXTEND cell is as
 before, but the EXTENDED cell now contains information from the
 extending relay, as well the CREATED cell from the target relay.
-> XXX how to encode? need new cell type?
 
+
+
+> XXX how to encode? need new cell type?
 
 > XXX Need a CREATE cell that optionally tells the target relay what
 > XXX B to use from the SNIP.
@@ -32,8 +34,12 @@ index, using the following coding for its contents:
     /* Using trunnel syntax here. */
     struct snip_index {
         u16 index_id; // which index is it?
-        u8 index[]; // extends to the end of the index
+        u8 index[]; // extends to the end of the link specifier.
     }
+
+The "index" field can be longer or shorter than the actual width of the
+router index.  If it is too long, it is truncated.  If it is too short, it is
+extended with zero-valued byte.
 
 Any number of these link specifiers may appear in an EXTEND cell.
 If there is more then one, then they should appear in order of
@@ -45,7 +51,8 @@ Ed25519 ID link specifiers.  Relays receiving such a link along with
 a snip_index link specifier SHOULD reject the entire EXTEND request.
 
 > XXX I'm avoiding use of cbor for these types. Is that correct? I
->  think so, on the theory that there is no.
+>  think so, on the theory that there is no reason here, and we already use
+>  trunnel-like objcts for this purpose.
 
 ## Modified ntor handshake
 
