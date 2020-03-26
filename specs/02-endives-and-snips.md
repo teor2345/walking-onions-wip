@@ -274,6 +274,9 @@ published time, etc.
 > to any other type as we review and revise this design. It may turn
 > out to omit things that we need.
 
+> XXXX We need a way to say which fields here are included in outgoing CREATE
+> cells.
+
     ; A SNIPRouterData is a map from integer keys to values for
     ; those key.
     SNIPRouterData = {
@@ -546,6 +549,10 @@ for the full algorithm, see section XXXX.
         ; signed would take another step in the voting algorithm.
         DetachedSNIPSignatures,
 
+        ; Signatures across the RootDocument pieces.  Note that as with the
+        ; DetachedSNIPSignatures, these signature are not themselves signed.
+        RootDocSignature,
+
         ; extensions for later use. These are not signed.
         ? extensions : { * any => any },
     ]
@@ -579,6 +586,11 @@ for the full algorithm, see section XXXX.
             * tstr => any,
         }
 
+        ; Documents for clients/relays to learn about current network
+        ; parameters.
+        client-root-doc :  bstr .cbor ClientRootDocument,
+        relay-root-doc : bstr .cbor RelayRootDocument,
+
         ; Definitions for index group.  Each "index group" is all
         ; applied to the same SNIPs.  (If there is one index group,
         ; then every relay is in at most one SNIP, and likely has several
@@ -606,6 +618,10 @@ for the full algorithm, see section XXXX.
         indices : [ + IndexId ],
         ; A list of keys to delete from SNIPs to build this index group.
         omit_from_snips : [ *(int/tstr) ],
+        ; A list of keys to forward from SNIPs to the next relay in an EXTEND
+        ; cell.  This can help the next relay know which keys to use in its
+        ; handshake.
+        forward_with_extend : [ *(int/tstr) ],
 
         ; A number of "gaps" to place in the Merkle tree after the SNIPs
         ; in this group.  This can be used together with signature-depth
@@ -703,13 +719,50 @@ for the full algorithm, see section XXXX.
 
 ## Root documents
 
-Do not need to be up-to-date to use network!!!
+    ; A "root document" is like a tiny consensus that relays and clients can
+    ; use to get network parameters.
+    ; XXXX could use a better name here. How about ParamDoc?
+    RootDocument = [
+       sig : RootDocSignature,
+       ; Client-relevant portion of the root document. Everybody fetches this.
+       cbody : bstr .cbor ClientRootDocument,
+       ; Relay-relevant portion of the root document. Only relays need to
+       ; fetch this; the document can be validated without it.
+       ? sbody : bstr .cbor RelayRootDocument,
+    ]
+    RootDocSignature = [
+       ; Mutlisignature of the two digests below.
+       [ + SingleSig / MultiSig ],
 
-Let lifetime on these be long-ish.
+       ; Lifespan information.  As with SNIPs, this is included as part
+       ; of the input to the hash algorithm for the signature.
+       ; Note that the lifespan of a root document is likely to be very long.
+       LifespanInfo,
+       ; how is the digest computed?
+       d_alg : DigestAlgorithm,
+       ; Digest over the cbody field
+       c_digest : bstr,
+       ; Digest over the sbody field
+       s_digest : bstr,
+    ]
 
-Mostly same stuff as current header/footer of consensus.
+    ClientRootDocument = {
+       params: NetParams,
+       ? recommend-versions: [ * tstr ],
+       ? recommend-protos: ProtoVersions,
+       ? require-versions: ProtoVersions,
+       * tstr => any,
+    }
 
-XXXX
+    RelayRootDocument = {
+       params: NetParams,
+       ? recommend-versions: [ * tstr ],
+       ? recommend-protos: ProtoVersions,
+       ? require-versions: ProtoVersions,
+       * tstr => any,
+    }
+
+    NetParams = { *tstr => any }
 
 
 ## ENDIVE diffs
