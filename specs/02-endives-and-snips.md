@@ -719,6 +719,12 @@ for the full algorithm, see section XXXX.
 
 ## Root documents
 
+Root documents take the place of the current consensus and
+certificates as a small document that clients and relays need to
+download periodically and keep up-to-date.  They are generated as
+part of the voting process, and contain fields like network
+parameters, recommended versions, authority certificates, and so on.
+
     ; A "root document" is like a tiny consensus that relays and clients can
     ; use to get network parameters.
     ; XXXX could use a better name here. How about ParamDoc?
@@ -731,7 +737,7 @@ for the full algorithm, see section XXXX.
        ? sbody : bstr .cbor RelayRootDocument,
     ]
     RootDocSignature = [
-       ; Mutlisignature of the two digests below.
+       ; Multisignature of the two digests below.
        [ + SingleSig / MultiSig ],
 
        ; Lifespan information.  As with SNIPs, this is included as part
@@ -747,7 +753,8 @@ for the full algorithm, see section XXXX.
     ]
 
     ClientRootDocument = {
-       params: NetParams,
+       params : NetParams,
+       voters : [ + VotingCert ],
        ? recommend-versions: [ * tstr ],
        ? recommend-protos: ProtoVersions,
        ? require-versions: ProtoVersions,
@@ -766,23 +773,48 @@ for the full algorithm, see section XXXX.
 
 ## Certificates
 
-    ; xxxx describe all these things.
+Voting certificates are used to bind authorities' long-term
+identities to shorter-term signing keys.  These have a similar
+purpose to the authority certs made for the existing voting
+algorithm, but support more key types.
+
+    ; A 'voter certificate' is a statement by an authority binding keys to
+    ; each other.
     VoterCert = [
+
+       ; One or more signatures over `content` using the provided lifetime.
+       ; Each signature should be treated independently
        [ + SingleSig ],
+       ; A lifetime value, used (as usual ) as an input to the
+       ; signature algorithm.
        Lifetime,
+       ; The keys and other data to be certified.
        content : bstr .cbor CertContent,
     ]
 
+    ; The contents of the certificate that get signed.
     CertContent = {
-       type : uint,
+       ; What kind of a certificate is this?
+       type : CertType,
+       ; A list of keys that are being certified in this document
        keys : [ + CertifiedKey ],
-       ? extra_keys : [ + CertifiedKey ],
-    ]
+       ; A list of other keys that you might need to know about, which
+       ; are NOT certififed in this document.
+       ? extra : [ + CertifiedKey ],
+       * tstr => any,
+    }
 
-    CertifiedKey = [
-       key_type : uint,
-       key_data : bstr,
-    ]
+    CertifiedKey = {
+       ; What is the intended usage of this key?
+       usage : KeyUsage,
+       ; What cryptographic algorithm is this key used for?
+       alg : PKAlgorithm,
+       ; The actual key being certified.
+       data : bstr,
+       ; A human readable string.
+       ? remarks : tstr,
+       * tstr => any,
+    }
 
 ## ENDIVE diffs
 
@@ -936,7 +968,33 @@ bytes long.
        RSA-OAEP-SHA1   : 1,     ; deprecated.
        RSA-OAEP-SHA256 : 2,     ; deprecated.
        Ed25519         : 3,
-       BLS             : 3,     ; Not yet standardized.
+       Ed448           : 4,
+       BLS             : 5,     ; Not yet standardized.
 
        ; XXX specify how references to other documents would be described.
     )
+
+    PKAlgorithm = &(
+       SigningAlgorithm,
+
+       Curve25519 : 100,
+       Curve448   : 101
+    )
+
+    KeyUsage = &(
+       ; A master unchangeable identity key for this authority.  May be
+       ; any signing key type.  Distinct from the authority's identity as a
+       ; relay.
+       AuthorityIdentity : 0x10,
+       ; A medium-term key used for signing SNIPs, votes, and ENDIVEs.
+       SNIPSigning : 0x11,
+
+       ; XXXX these are designed not to collide with the "list of certificate
+       ; types" or "list of key types" in cert-spec.txt
+    )
+
+    CertType = &(
+       VotingCert : 0x10,
+       ; XXXX these are designed not to collide with the "list of certificate
+       ; types" in cert-spec.txt.
+    );
