@@ -124,19 +124,30 @@ Individual voting operations are listed below.  In the descriptions
 below, "more than half" is to be interpreted strictly: "more than half
 of two" for example, means "at least 1", not "one or more".
 
+Voting operations may be parameterized by an integer.
+
 The following constants are defined:
 
 `N_AUTH` -- the total number of authorities, including those whose votes
 are absent.
 
-`N_VOTE` -- the total number of authorities whose votes are present for
+`N_PRESENT` -- the total number of authorities whose votes are present for
 this vote.
 
-`QUORUM` -- The lowest integer that is greater than half of
+`N_FIELD` -- the total number of authorites who votes for a given field are
+present.
+
+`QUORUM_AUTH` -- The lowest integer that is greater than half of
 `N_AUTH`.  Equivalent to CEIL( (N_AUTH+1)/2 ).
 
+`QUORUM_PRESENT` -- The lowest integer that is greater than half of
+`N_PRESENT`.  Equivalent to CEIL( (N_PRESENT+1)/2 ).
 
-### IntMedian
+`QUORUM_FIELD` -- The lowest integer that is greater than half of
+`N_FIELD`.  Equivalent to CEIL( (N_PRESENT+1)/2 ).
+
+
+### IntMedian [N]
 
 Discard all non-Integer votes.  To take the 'median' of a set of N
 integer votes, first put them in ascending sorted order.  If N is odd,
@@ -146,54 +157,46 @@ the lower of the two center votes (the one at position N/2).
 For example, the IntMedian of the votes ["String", 2, 111, 6] is 6.
 The IntMedian of the votes ["String", 77, 9, 22, "String", 3] is 9.
 
-### FirstMode
+If the parameter N is provided, then there must be at least N votes or there
+is no consensus.
+
+### FirstMode [N]
 
 Discard all votes that are not booleans, integers, byte strings, or text
 strings. Find the most frequent value in the votes.  If there is a tie,
 break ties in favor of lower values.  (Sort by cbor canonical order.)
 
-### LastMode
+If the parameter N is provided, then the mode must be listed in at least N
+votes or there is no consensus.
+
+### LastMode [N]
 
 As FirstMode, but break ties in favor of higher values.
 
-### IntMean
+### IntMean [NP
 
 Discard all non-Integer votes.  To take the integer 'mean' of a set of N
 integer votes, compute FLOOR(SUM(votes)/N).
 
 For example, the IntMean of [7, 99, 11, 6, 9] is 26.
 
-### Intersection
+If the parameter N is provided, then there must be at least N votes or there
+is no consensus.
+
+### SetJoin [N]
 
 Discard all votes that are not lists.  From each list, remove values
 that are not booleans, integers, byte strings, or text strings.
 
-To take the "Intersection" of the resulting lists, construct a list
-containing exactly those elements that are listed in more than half of
+To take the "SetJoin[N]" of the resulting lists, construct a list
+containing exactly those elements that are listed in N or more of the of
 the input lists, once each.  Sort this list in canonical cbor order.
 
->XXXX maybe there should be a parameter indicating "must appear in at
->least N?""
-
-### Union
-
-Discard all votes that are not lists.  From each list, remove values
-that are not booleans, integers, byte strings, or text strings.
-
-To take the "Union" of the resulting lists, construct a list containing
-exactly those elements that are listed in any of the input lists, once
-each. Sort this list in canonical cbor order.
-
->XXXX maybe there should be a parameter indicating "must appear in at
->least N?""
+Note that if N=1, then this operation is equivalent to a set union.
 
 ### Special
 
 ### None
-
-
-
-
 
 
 ## A CBOR-based metaformat for votes.
@@ -216,7 +219,8 @@ are to be formatted.
     VoteContent = {
         voter : VoterSection,
         meta : MetaSection .within VoteableSection,
-        root : RootSection .within VoteableSection,
+        client-root : RootSection .within VoteableSection,
+        server-root : RootSection .within VoteableSection,
         relays : RelaySection,
         indices : IndexSection,
         * tstr => any
@@ -224,11 +228,12 @@ are to be formatted.
 
     VoterSection = {
         name : tstr,
-        ? ul : [ *LinkSpec ]
+        ? ul : [ *LinkSpec ],
         ? dl : [ *LinkSpec ],
         ? contact : tstr,
-        cert : VoterCert,
+        certs : [ + VoterCert ] ,
         ? legacy-cert : tstr,
+        * tstr => any,
     }
 
     MetaSection = {

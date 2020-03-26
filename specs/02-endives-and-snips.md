@@ -485,7 +485,7 @@ validated as described in "Design overview: Authentication" above.
        signature : bstr,
        ; A prefix of the key or the key's digest, depending on the
        ; algorithm.
-       ?keyid : bstr
+       ?keyid : bstr,
        ]
 
     MultiSig = [ + SingleSig ]
@@ -588,7 +588,7 @@ for the full algorithm, see section XXXX.
 
         ; Documents for clients/relays to learn about current network
         ; parameters.
-        client-root-doc :  bstr .cbor ClientRootDocument,
+        client-root-doc : bstr .cbor ClientRootDocument,
         relay-root-doc : bstr .cbor RelayRootDocument,
 
         ; Definitions for index group.  Each "index group" is all
@@ -764,6 +764,25 @@ for the full algorithm, see section XXXX.
 
     NetParams = { *tstr => any }
 
+## Certificates
+
+    ; xxxx describe all these things.
+    VoterCert = [
+       [ + SingleSig ],
+       Lifetime,
+       content : bstr .cbor CertContent,
+    ]
+
+    CertContent = {
+       type : uint,
+       keys : [ + CertifiedKey ],
+       ? extra_keys : [ + CertifiedKey ],
+    ]
+
+    CertifiedKey = [
+       key_type : uint,
+       key_data : bstr,
+    ]
 
 ## ENDIVE diffs
 
