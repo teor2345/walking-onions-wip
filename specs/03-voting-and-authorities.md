@@ -173,7 +173,19 @@ votes or there is no consensus.
 
 As FirstMode, but break ties in favor of higher values.
 
-### IntMean [NP
+### FirstWith [N]
+
+Discard all votes that are not booleans, integers, byte strings, or text
+strings. Sort in canonical cbor order.  Return the first element
+that is listed in at least N votes.
+
+### LastWith [N]
+
+Discard all votes that are not booleans, integers, byte strings, or text
+strings. Sort in canonical cbor order.  Return the final element
+that is listed in at least N votes.
+
+### IntMean [N]
 
 Discard all non-Integer votes.  To take the integer 'mean' of a set of N
 integer votes, compute FLOOR(SUM(votes)/N).
@@ -196,7 +208,14 @@ Note that if N=1, then this operation is equivalent to a set union.
 
 ### Special
 
+If a voting operation is described as "Special", then any field
+using it is generated in some field-specific way.  This is only
+usable for fields whose voting operations are specified in this
+document.
+
 ### None
+
+The voting operation "None" never produces a consensus.
 
 
 ## A CBOR-based metaformat for votes.
@@ -210,40 +229,105 @@ that item is said to be a "legacy item".  Legacy items are in a
 limited format, and contain a small set of tags indicating how they
 are to be formatted.
 
+    ; VoteDocument is a top-level signed vote.
     VoteDocument = [
         sig : [ + SingleSig ],
         lifetime : LifespanInfo,
         body : bstr .cbor VoteContent
     ]
 
+    ; XXXX I need to decide what to do with VoteableSection. In my
+    ;   original design, all voteable objects were self-describing,
+    ;   but we need to decide whether that makes sense.
+
     VoteContent = {
+        ; Information about the voter itself
         voter : VoterSection,
+        ; Meta-information that the authorities vote on, which does
+        ; not actually appear in the ENDIVE or consensus directory.
         meta : MetaSection .within VoteableSection,
+        ; Fields that appear in the client root document.
         client-root : RootSection .within VoteableSection,
+        ; Fields that appear in the server root document.
         server-root : RootSection .within VoteableSection,
+        ; Information that the authority wants to share about this
+        ; vote, which is not for voting.
+        notes : NoteSection,
+        ; Information about each relay.
         relays : RelaySection,
+        ; Information about indices.
         indices : IndexSection,
         * tstr => any
     }
 
     VoterSection = {
+        ; human-memorable name
         name : tstr,
+
+        ; List of link specifiers to use when uploading to this
+        ; authority. (See proposal for dirport link specifier)
         ? ul : [ *LinkSpec ],
+
+        ; List of link specifiers to use when downloading from this authority.
         ? dl : [ *LinkSpec ],
+
+        ; contact information for this authority.
         ? contact : tstr,
+
+        ; certificates tying this authority's long-term identity
+        ; key(s) to the signing keys it's using to vote.
         certs : [ + VoterCert ] ,
+
+        ; legacy certificate in format given by dir-spec.txt.
         ? legacy-cert : tstr,
+
+        ; for extensions
         * tstr => any,
     }
 
+    // nonconformant with VoteableSection XXX
     MetaSection = {
+       ; List of supportd consensus methods.
+       consensus-methods : [ + uint ],
+       ; Seconds to allocate for voting and distributing signatures
+       voting-delay: [ vote_seconds: uint, dist_seconds: uint ],
+       ; Proposed time till next vote.
+       voting-interval : uint,
+       ; proposed lifetime for the SNIPs and endives
+       snip_lifetime: Lifetime,
+       ; proposed lifetime for client root document
+       c_root_lifetime : Lifetime,
+       ; proposed lifetime for server root document
+       s_root_lifetime : Lifetime,
+       ; Current and previous shared-random values
+       ? cur-shared-rand : [ reveals : uint, rand : bstr ],
+       ? prev-shared-rand : [ reveals : uint, rand : bstr ],
+       ?shared-rand-commit : SRCommit,
+       ; Parameters used for voting only.
        * tstr => Voteable
     };
 
+    SRCommit = [
+       ver : uint,
+       alg : tstr,
+       ident : bstr,
+       commit : bstr,
+       ? reveal : bstr
+    ]
+
     RootSection = {
+       ? versions : [ * tstr ],
+       ? require-protos : ProtoVersions,
+       ? recommend-protos : ProtoVersions,
+       ? params : NetParams,
        * tstr => Voteable
     }
 
+    NoteSection = {
+       flag-thresholds : { tstr => any },
+       bw-file-headers : {tstr => any },
+       * tstr => any
+    }
     RelaySection = {
        * bstr => RelayInfo .within VotingRule,
     }
@@ -254,6 +338,38 @@ are to be formatted.
        ? legacy : RelayLegacyInfo,
     ]
 
+    // xxx i'm probably missing something here.
+    RelayLegacyInfo = {
+       nickname : tstr,
+       flags : [ + tstr ],
+       desc_digest : bstr,
+       ? md_digests : [ + MDDigest ],
+       ? md_literal : LiteralMD,
+       published : tstr,
+       protovers : protocolVersions,
+       ? ipv4-orport : [ bstr, uint ],
+       ? ipv6-orport : [ bstr, uint ],
+       ? dirport : uint,
+       ? policy-summary : [ + tstr ],
+       ? version : tstr,
+       ? weight : {
+          bw : uint,
+          ? measured : bool,
+          ? unmeasured : bool
+       },
+       * tstr => any,
+    }
+
+    LiteralMD = [ * MDLine ]
+    MDLine = [ * MDLineElement ]
+    MDLineElement = tstr / bstr   ;  xxxx tag bstr as hex or base64
+
+    MDDigest = [
+       low : uint,
+       high : uint,
+       digest : bstr .size 32
+    ]
+
     // ==========
 
     VoteableSection = {
@@ -261,32 +377,26 @@ are to be formatted.
     }
 
     Voteable = [
-       rule : VotingRule,
+       rule : VotingRule / [ VotingRule, uint ],
        content : any
     ]
 
     VotingRule = &(
        None          : 0,
        Special       : 1,
-       Median        : 2,
+       IntMedian     : 2,
        LowMode       : 3,
        HighMode      : 4,
-       Intersect     : 5,
+       FirstWith     : 5,
+       LastWith      : 6,
+       IntMean       : 7,
+       SetJoin       : 8,
     )
-    
 
 
-XXX have to : make root document
 
-XXXsay how to : vote.
-
-XXX say how to : sign.
 
 Kinds of voting rule: low-mode, high-mode, median.
-
-xx "A foo is present if at least half of authorities vote on foo and
-specify the same voting rule for it.  The value of the foo is
-determined by that voting rule."
 
 xx In endive need to vote on what the snips contents are, what the
 adjunct data are, how each index works.  because of eliding, only
@@ -300,9 +410,34 @@ onions
 
 ## Deriving older vote formats.
 
+The data included in a VoteDocument can be used to reconstruct the
+same data that would be present in a legacy vote, and therefore can
+be used to compute legacy consensus documents for as long as they may
+be needed.  Here we describe how to compute these contents.
+
+xxx
 
 ## Computing an ENDIVE.
 
+xxx main idea here: decide what to include by voting on
+sniprouterdata as we do on microdescriptors.  seems to provide easy
+migration.
+
+xxx alternative: vote on individual fields?
+
+xxx give flags similar to how we do now
+
+xxx define indices in terms of weights and flags
+
+xxx weighting tweaks for different roles: ouch.  can anything be
+done to make the complicated pile of formulas easier?  or do
+authorities need to keep computing that ** post-vote** and feeding
+it into the index calculations?  The post-vote part is what makes it
+ugly here. If we could just have the vote do a median or something
+we'd be in much better shape.
+
+xxx could investigate if medians would work earlier based on formulas
+and historical data?
 
 ## Managing indices over time.
 
@@ -311,7 +446,12 @@ XXXX
 index groups could be fixed; that might be best at first. we could
 reserve new methods for allocating new ones.
 
+xxxx each index group gets a set of tags: must have all tags to be in the
+group.  Additionally has set of weight/tag-set pairs: if you have
+all tags in that set, you get multiplied by the weight.  allow
+multiple possible source probabilities.
 
+xxx oh hey that might work!
 
 ## Bandwidth analysis
 

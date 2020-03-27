@@ -716,6 +716,8 @@ for the full algorithm, see section XXXX.
     ; should not be interpreted until after the signature is checked.
     ; It also helps diff tools know that they should look inside these
     ; objects.
+    ;
+    ; XXXX We should use encoded-cbor in more places, to help with diffs!
 
 ## Root documents
 
