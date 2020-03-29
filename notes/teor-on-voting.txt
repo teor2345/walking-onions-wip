@@ -1,0 +1,119 @@
+
+
+> On 20 Mar 2020, at 23:01, Nick Mathewson <nickm@freehaven.net> wrote:
+> 
+> On Wed, Mar 18, 2020 at 11:21 AM teor <teor@riseup.net> wrote:
+>> 
+>>> On 14 Mar 2020, at 14:44, teor <teor@riseup.net> wrote:
+>>> 
+>>>> * As I work, I'm identifying other issues in tor that stand in
+>>>>   the way of a good efficient walking onion implementation that
+>>>>   will require other follow-up work.  This week I ran into a
+>>>>   need for non-TAP-based v2 hidden services, and a need for a
+>>>>   more efficient family encoding.  I'm keeping track of these
+>>>>   in my outline file.
+>> 
+>> Here's another issue you might want to consider:
+>> 
+>> Currently, new relays get in the consensus as soon as:
+>>  * they post their descriptors, and
+>>  * a majority of authorities can contact their ORPorts.
+>> 
+>> That means clients and relays waste a whole bunch of bandwidth
+>> downloading consensus info and descriptors for relays with very
+>> low weights.
+>> 
+>> Instead, we could have two documents:
+> 
+> Thanks for this! This dovetails nicely with some of the voting design
+> work I'm up to right now.
+
+It would be great to have a protocol that doesn't depend on:
+* time synchronisation
+* big documents
+* one-shot updates
+* absolute consistency
+
+We've already made vote timing a bit more robust in the tor master
+branch, by ignoring late votes:
+https://trac.torproject.org/projects/tor/ticket/4631
+
+Here's a few other tweaks that might help:
+
+Tor halves the consensus interval when there is no fresh consensus.
+But changing the interval makes tor's code much more complex.
+Instead, let's have a fixed consensus interval. And make it long
+enough for efficiency, but short enough to recover from a failed
+consensus.
+
+Let's support vote diffs, as well as consensus diffs. Vote diffs
+don't help when posting votes. But when requesting votes, authorities
+can include hashes of votes they already have. That way, authorities
+that are under heavy load are more likely to get all the votes.
+
+We could increase the time that authorities have to fetch votes, and
+make them retry fetches every few minutes.
+
+We could do consistency checks on smaller shards, so that a
+consistency failure in any one document does not break the entire
+consensus.
+
+We could create a shard for each supported consensus method (like we
+do microdescriptors). That way, a consistency failure in any one
+consensus method does not break the entire consensus.
+
+We could make shards valid for a longer time, so that if the
+replacement shard does not reach consensus, the older one is used.
+
+Then, the final documents are a combination of all the consistent
+shards, using the highest consistent consensus method. (Much like
+the current microdesc consensus.)
+
+Once we've made some of those changes, then some other changes
+become plausible:
+
+Let's make votes valid for exactly 2 voting periods, and use the
+latest available vote from each authority.
+
+Currently, each consensus can have one of two inputs from each
+authority:
+* the current vote, or
+* no vote.
+If a majority of authorities don't vote, then the consensus fails.
+(And if enough bandwidth authorities don't vote, then measured
+bandwidths fail.)
+
+If there are up to two valid votes during a voting period, then
+each consensus can have one of three inputs from each authority:
+* the current vote, or
+* the vote before the current vote, or
+* no vote.
+Having 3 possible choices is slightly worse than having 2 choices.
+
+But with the changes above, authorities are more likely to have the
+latest vote from each other authority. And having similar votes
+will be enough for most of the shards to be consistent, for most
+consensus methods.
+
+If a majority of authorities don't have any valid votes, then the
+consensus fails. But that's much less likely when there are two
+valid votes at any one time.
+
+We could also make each authority construct its own merkle root(s),
+and allow the N most popular/recent roots on the network.
+(Or equivalently, allow roots with current signatures from M
+authorities.)
+
+We could split votes into shards as well, and make authorities
+exchange them like they exchange relay descriptors?
+(When they see a reference to a new vote shard, they try to
+download it from all other authorities.)
+
+We'd need extra monitoring, to make sure that diffs, authorities,
+shards, consensus methods, or latest votes aren't consistently
+broken.
+
+Maybe there's a few more steps we could take, and then we'd have
+a voting protocol that doesn't require strict time
+synchronisation. Where updates just happen as authorities make
+them available, rather than all at once.
