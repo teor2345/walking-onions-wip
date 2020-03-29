@@ -641,16 +641,28 @@ for the full algorithm, see section XXXX.
         Indextype_Weighted : 1,
         Indextype_RSAId : 2,
         Indextype_Ed25519Id : 3,
+        Indextype_RawNumeric : 4
     )
 
     ; An indexspec may given as a raw set of indices.  This is a fallback for
     ; cases where we simply can't construct an index any other way.
     IndexSpec = {
         type: IndexType_Raw,
+        first_index : IndexPos,
         ; This index is constructed by taking relays by index from the list
         ; of ENDIVERouterData, and putting them at a given point in the index.
-        index_ranges: [ * [ uint, IndexPos, IndexPos ] ],
+        index_ranges: [ * [ uint, IndexPos ] ],
     }
+
+    ; An indexpsec where we're placing routers from the list of
+    ; ENDIVERouterData, index and by their numeric weights.
+    IndexSpec /= {
+        type: IndexType_RawNumeric,
+        ; This index is constructed by taking relays by index from the list
+        ; of ENDIVERouterData, and putting them at a given point in the index.
+        index_ranges: [ * [ idx : uint, span : uint ] ],
+    }
+
     ; This index is computed from the weighted bandwidths of all the SNIPs.
     ;
     ; Note that when a single bandwidth changes, it can change _all_ of

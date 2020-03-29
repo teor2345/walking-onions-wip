@@ -59,23 +59,20 @@ cannot be expended.
 
 ### Raw indices
 
-When the IndexType is Idextype_Raw, then its members are listed
+When the IndexType is Indextype_Raw, then its members are listed
 directly in the IndexSpec.
 
     Algorithm: Expanding a "Raw" indexspec.
 
     Let result_idx = {} (an empty mapping).
 
-    Let previous_pos = Nil.
+    Let previous_pos = indexspec.first_index
 
-    For each element [i, pos1, pos2] of indexspec.index_ranges:
+    For each element [i, pos2] of indexspec.index_ranges:
 
         Verify that i is a valid index into the list of ENDIVERouterData.
 
-        If previous_pos is Nil:
-            Verify that pos1 is the minimum value for the index type.
-        else:
-            Verify that pos1 is the successor of previous_pos.
+        Set pos1 = the successor of previous_pos.
 
         Verify that pos1 and pos2 have the same type, and that pos1
         <= pos2.
@@ -85,6 +82,29 @@ directly in the IndexSpec.
         Set previous_pos to pos2.
 
     Verify that previous_pos = the maximum value for the index type.
+
+    Return result_idx.
+
+### Raw numeric indices
+
+If the IndexType is Indextype_RawNumreic, it is describe by a set of
+spans on a 64-bit index range.
+
+    Algorithm: Expanding a RawNumeric index.
+
+    Let prev_pos = 0
+
+    For each element [i, span] of indexspec.index_ranges:
+
+        Verify that i is a valid index into the list of ENDIVERouterData.
+
+        Let pos2 = prev_pos + span.
+
+        Append the mapping (pos1, pos2) => i to result_idx
+
+        Let prev_pos = pos2 + 1
+
+    Verify that previous_pos = UINT32_MAX
 
     Return result_idx.
 
@@ -170,6 +190,11 @@ feature.
 
     Sub-Algorithm: INDEX_FROM_RANGE_KEYS(R)
 
+        # XXXX double-check that we are actually looking at the
+        # right relay.  teor says that our algorithm is supposed to
+        # use the hsdir at the the _next_ index on the ring, not the
+        # _previous_ one. They are probably correct.
+
     First, sort R according to its 'pos' field.
 
     For each member (m, pos, idx) of the list R:
@@ -181,6 +206,8 @@ feature.
 
             Let key_high = the precessor of key_next.
         else:
+            # XXXX this should wrap around, not stop at 0xfffff.
+            # We should be clear about wrapping in snips.
             Let key_high = 0xFFFFFFFF...., truncated to n_bytes.
 
         If key_high >= key_low:
