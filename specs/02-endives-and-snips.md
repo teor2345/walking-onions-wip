@@ -826,7 +826,7 @@ parameters, recommended versions, authority certificates, and so on.
     ; Note that there are separate client and relay NetParams now.
     ; Relays are expected to first check for a defintion in the
     ; RelayRootDocument, and then in the ClientRootDocument.
-    NetParams = { *tstr => any }
+    NetParams = { *tstr => int }
 
 ## Certificates
 
