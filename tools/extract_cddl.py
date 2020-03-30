@@ -42,6 +42,11 @@ def strip_directives_for_ruby_cddl(s):
     s = s.replace("bstr .cbor ", "").replace("encoded-cbor .cbor ", "")
     return re.sub(r'.within \w+', '', s)
 
+def strip_stuff_for_rust_cddl(s):
+    """
+    """
+    return re.sub(r';.*', '', s)
+
 def main(argv):
     progname = argv[0]
     parser = argparse.ArgumentParser(prog=progname)

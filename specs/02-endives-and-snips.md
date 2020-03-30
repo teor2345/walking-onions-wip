@@ -290,7 +290,7 @@ published time, etc.
         ; If a client wants to extend to the same router later on,
         ; they SHOULD include all of these link specifiers verbatim,
         ; whether they recognize them or not.
-        ? 2 => [ bstr ],
+        ? 2 => [ LinkSpecifier ],
 
         ; The software that this relay says it is running.
         ? 3 => SoftwareDescription,
@@ -392,7 +392,7 @@ SNIPLocation for that relay exists.
     ; to look up indices in maps.
     SNIPLocation = {
         ; A SNIP's location is given as a ranges in different
-        ; indices.
+        ; ranges.
         + IndexId => IndexRange,
 
         ; For experimental and extension use -- denotes other kinds of
@@ -453,7 +453,8 @@ validated as described in "Design overview: Authentication" above.
     ; When we are using it as an input to a hash algorithm for computing
     ; signatures, we encode it as an 8-byte number for "published",
     ; followed by two 4-byte numbers for pre-valid and post-valid.
-    LifespanInfo = (
+    ; XXXX should this be a group, or a type?
+    LifespanInfo = [
         ; Official publication time in seconds since the epoch.  These
         ; MUST be monotonically increasing over time for a given set of
         ; authorities on all SNIPs or ENDIVEs that they generate: a
@@ -473,7 +474,7 @@ validated as described in "Design overview: Authentication" above.
         ; this object should be accepted.  The lifetime of an object is
         ; therefore equal to "(post-valid + pre-valid)".
         post-valid : uint32,
-    )
+    ]
 
     ; One signature on a SNIP or ENDIVE.  If the signature is a threshold
     ; signature, or a reference to a signature in another
@@ -584,7 +585,7 @@ for the full algorithm, see section XXXX.
 
             ; reserved for future extensions.
             * tstr => any,
-        }
+        },
 
         ; Documents for clients/relays to learn about current network
         ; parameters.
@@ -605,7 +606,7 @@ for the full algorithm, see section XXXX.
         relays : [ * ENDIVERouterData ],
 
         ; for future exensions
-        * tstr : any,
+        * tstr => any,
     }
 
     ; An "indexgroup" lists a bunch of routing indices that apply to the same
@@ -636,7 +637,7 @@ for the full algorithm, see section XXXX.
     }
 
     ; Enumeration to identify how to generate an index.
-    IndexType = &(
+    IndexType = (
         Indextype_Raw : 0,
         Indextype_Weighted : 1,
         Indextype_RSAId : 2,
@@ -646,18 +647,18 @@ for the full algorithm, see section XXXX.
 
     ; An indexspec may given as a raw set of indices.  This is a fallback for
     ; cases where we simply can't construct an index any other way.
-    IndexSpec = {
-        type: IndexType_Raw,
+    IndexSpec_Raw = {
+        type: Indextype_Raw,
         first_index : IndexPos,
         ; This index is constructed by taking relays by index from the list
         ; of ENDIVERouterData, and putting them at a given point in the index.
         index_ranges: [ * [ uint, IndexPos ] ],
     }
 
-    ; An indexpsec where we're placing routers from the list of
+    ; An indexspec where we're placing routers from the list of
     ; ENDIVERouterData, index and by their numeric weights.
-    IndexSpec /= {
-        type: IndexType_RawNumeric,
+    IndexSpec_Numeric = {
+        type: Indextype_RawNumeric,
         ; This index is constructed by taking relays by index from the list
         ; of ENDIVERouterData, and putting them at a given point in the index.
         index_ranges: [ * [ idx : uint, span : uint ] ],
@@ -668,7 +669,7 @@ for the full algorithm, see section XXXX.
     ; Note that when a single bandwidth changes, it can change _all_ of
     ; the indices in a bandwidth-weighted index, even if no other
     ; bandwidth changes.
-    IndexSpec /= {
+    IndexSpec_Weightd /= {
         type: Indextype_Weighted,
         ; This index is constructed by assigning a weight to each relay,
         ; and then normalizing those weights. See algorithm below in section
@@ -681,7 +682,7 @@ for the full algorithm, see section XXXX.
 
     ; This index is computed from the RSA identity keys digests of all of the
     ; SNIPs. It is used in the HSv2 directory ring.
-    IndexSpec /= {
+    IndexSpec_RSAId = {
         type: Indextype_RSAId,
         ; How many bytes of RSA identity data go into each indexpos entry?
         n_bytes: uint,
@@ -690,7 +691,7 @@ for the full algorithm, see section XXXX.
     }
     ; This index is computed from the Ed25519 identity keys of all of the
     ; SNIPs.  It is used in the HSv3 directory ring.
-    IndexSpec /= {
+    IndexSpec_Ed25519Id = {
         type : Indextype_Ed25519Id,
         ; How many bytes of digest go into each indexpos entry?
         n_bytes : uint,
@@ -703,6 +704,12 @@ for the full algorithm, see section XXXX.
         ; Bitmap of which routers should be included.
         members : bstr,
     }
+
+    IndexSpec = IndexSpec_Raw /
+                IndexSpec_RawNumeric /
+                IndexSpec_Weighted /
+                IndexSpec_RSAId /
+                IndexSpec_Ed25519Id
 
     ; Information about a single router in an ENDIVE.
     ENDIVERouterData = {
@@ -768,7 +775,7 @@ parameters, recommended versions, authority certificates, and so on.
 
     ClientRootDocument = {
        params : NetParams,
-       voters : [ + VotingCert ],
+       voters : [ + VoterCert ],
        ? recommend-versions: [ * tstr ],
        ? recommend-protos: ProtoVersions,
        ? require-versions: ProtoVersions,
@@ -801,7 +808,7 @@ algorithm, but support more key types.
        [ + SingleSig ],
        ; A lifetime value, used (as usual ) as an input to the
        ; signature algorithm.
-       Lifetime,
+       LifespanInfo,
        ; The keys and other data to be certified.
        content : bstr .cbor CertContent,
     ]
@@ -858,12 +865,12 @@ and apply it.
         cmds : [ *DiffCommand ],
 
         ; for future extension.
-        * tstr : any,
+        * tstr => any,
     }
 
     ; There are currently only two diff commands.
     ; One is to copy some bytes from the original.
-    DiffCommand = [
+    CopyDiffCommand = [
         OrigBytesCmdId,
         ; Range of bytes to copy from the original document.
         ; Ranges include their starting byte.
@@ -874,10 +881,12 @@ and apply it.
     ; above to make the numbers smaller?
 
     ; The other diff comment is to insert some bytes from the diff.
-    DiffCommand /= [
+    InsertDiffCommand = [
         InsertBytesCmdId,
-        bytes : bstr,
+        data : bstr,
     ]
+
+    DiffCommand = CopyDiffCommand / InsertDiffCommand
 
     OrigBytesCmdId = 0
     InsertBytesCmdId = 1
@@ -896,7 +905,7 @@ Applying a binary diff is simple:
             Append INP[C.start .. C.start+C.length] to OUT.
 
         else: # C begins with InsertBytesCmdId:
-            Append C.bytes to OUT.
+            Append C.data to OUT.
 
 Generating a binary diff can be trickier, and is not specified here.
 There are several generic algorithms out there for making binary diffs
@@ -1012,3 +1021,5 @@ bytes long.
        ; XXXX these are designed not to collide with the "list of certificate
        ; types" in cert-spec.txt.
     );
+
+    LinkSpecifier = bstr;

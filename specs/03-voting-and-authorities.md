@@ -266,10 +266,10 @@ are to be formatted.
 
         ; List of link specifiers to use when uploading to this
         ; authority. (See proposal for dirport link specifier)
-        ? ul : [ *LinkSpec ],
+        ? ul : [ *LinkSpecifier ],
 
         ; List of link specifiers to use when downloading from this authority.
-        ? dl : [ *LinkSpec ],
+        ? dl : [ *LinkSpecifier ],
 
         ; contact information for this authority.
         ? contact : tstr,
@@ -285,7 +285,10 @@ are to be formatted.
         * tstr => any,
     }
 
-    // nonconformant with VoteableSection XXX
+    ; XXXX
+    IndexSection = nil
+
+    ; XXXX nonconformant with VoteableSection XXX
     MetaSection = {
        ; List of supportd consensus methods.
        consensus-methods : [ + uint ],
@@ -294,11 +297,11 @@ are to be formatted.
        ; Proposed time till next vote.
        voting-interval : uint,
        ; proposed lifetime for the SNIPs and endives
-       snip_lifetime: Lifetime,
+       snip_lifetime: LifespanInfo,
        ; proposed lifetime for client root document
-       c_root_lifetime : Lifetime,
+       c_root_lifetime : LifespanInfo,
        ; proposed lifetime for server root document
-       s_root_lifetime : Lifetime,
+       s_root_lifetime : LifespanInfo,
        ; Current and previous shared-random values
        ? cur-shared-rand : [ reveals : uint, rand : bstr ],
        ? prev-shared-rand : [ reveals : uint, rand : bstr ],
@@ -338,7 +341,11 @@ are to be formatted.
        ? legacy : RelayLegacyInfo,
     ]
 
-    // xxx i'm probably missing something here.
+    ; XXXXXX
+    RelayMetaInfo = nil
+    RelaySNIPInfo = nil
+
+    ; XXXXX xxx i'm probably missing something here.
     RelayLegacyInfo = {
        nickname : tstr,
        flags : [ + tstr ],
@@ -346,7 +353,7 @@ are to be formatted.
        ? md_digests : [ + MDDigest ],
        ? md_literal : LiteralMD,
        published : tstr,
-       protovers : protocolVersions,
+       protovers : ProtoVersions,
        ? ipv4-orport : [ bstr, uint ],
        ? ipv6-orport : [ bstr, uint ],
        ? dirport : uint,
@@ -370,7 +377,7 @@ are to be formatted.
        digest : bstr .size 32
     ]
 
-    // ==========
+    ; ==========
 
     VoteableSection = {
         * tstr => Voteable
