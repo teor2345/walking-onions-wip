@@ -245,7 +245,7 @@ derivitives.
 
            Let key = m's ed25519 identity key, as a 32-byte value.
 
-           Compute pos = H(prefix || suffix || key)
+           Compute pos = H(prefix || key || suffix)
 
            Truncate pos to n_bytes.
 

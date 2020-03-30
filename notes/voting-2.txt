@@ -1,0 +1,8 @@
+
+
+Make sure all signatures include digst algorithm and whatever else is
+missing in SNIPSignature.
+
+Use SoftwareDescription in votes.
+
+

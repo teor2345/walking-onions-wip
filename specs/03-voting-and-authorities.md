@@ -232,7 +232,7 @@ are to be formatted.
     ; VoteDocument is a top-level signed vote.
     VoteDocument = [
         sig : [ + SingleSig ],
-        lifetime : LifespanInfo,
+        lifetime : Lifespan,
         body : bstr .cbor VoteContent
     ]
 
@@ -297,11 +297,11 @@ are to be formatted.
        ; Proposed time till next vote.
        voting-interval : uint,
        ; proposed lifetime for the SNIPs and endives
-       snip_lifetime: LifespanInfo,
+       snip_lifetime: Lifespan,
        ; proposed lifetime for client root document
-       c_root_lifetime : LifespanInfo,
+       c_root_lifetime : Lifespan,
        ; proposed lifetime for server root document
-       s_root_lifetime : LifespanInfo,
+       s_root_lifetime : Lifespan,
        ; Current and previous shared-random values
        ? cur-shared-rand : [ reveals : uint, rand : bstr ],
        ? prev-shared-rand : [ reveals : uint, rand : bstr ],

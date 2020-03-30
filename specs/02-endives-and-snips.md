@@ -16,12 +16,12 @@ For example, we can imagine that a SNIP might say:
     * Here is a signature of all the above text, using a threshold
       signature algorithm.
 
-You can think of a SNIP as a signed combination of a routerstatus,
+You can think of a SNIP as a signed combination of a routerstatus and
 a microdescriptor ... together with a little bit of the randomized
 routing table from Tor's current path selection code, all wrapped
 in a signature.
 
-Every relay holds a set of SNIPs, and serves them to clients when
+Every relay keeps a set of SNIPs, and serves them to clients when
 the client is extending by routing index.
 
 An ENDIVE is a complete set of SNIPs.  Relays download ENDIVEs, or
@@ -40,14 +40,18 @@ avoid a side-channel, we want CREATED cells to all be the same
 size, which means we need to pad up to the largest size possible
 for a SNIP.)
 
-We want to place as few demands on clients as possible, and we want to
+We want to place as few requirements on clients as possible, and we want to
 preserve forward compatibility.
 
-We want ENDIVEs to be compressible, and small.  If we can continue
-getting benefit from diffs, we should.
+We want ENDIVEs to be compressible, and small. We want them to benefit from
+diffs.
 
-We should preserve (or loosen) our policy of requiring only loose
-time synchronization between clients and relays.
+We should preserve (and loosen) our policy of requiring only loose
+time synchronization between clients and relays.  Where possible,
+we'll make the permitted skew explicit in the protocol: for example,
+rather than saying "you can except a document 10 minutes before it
+is valid", we will just make the validity interval start 10 minutes
+earlier.
 
 ### Notes on Metaformat
 
@@ -61,7 +65,7 @@ I've chosen CBOR because it's schema-free (you can parse it
 without knowing what it is), terse, dumpable as text, extensible,
 standardized, and very easy to parse and encode.
 
-We will choose to represent nearly everything as maps whose
+We will choose to represent size-critical types as maps
 whose keys are short integers: this is slightly shorter in its
 encoding than string-based dictionaries.  (We could make things
 even shorter by using arrays, but that would have future-proofing
@@ -69,10 +73,11 @@ implications.)
 
 We'll use CDDL (defined in RFC 8610) to describe the data in a way
 that can be validated -- and hopefully, in a way that will make it
-comprehensible.
+comprehensible. (The state of CDDL tooling is a bit lacking at the
+moment, so my CDDL validation will likely be imperfect.)
 
 We make the following restrictions to CBOR documents that Tor
-implementations will generate:
+implementations will _generate_:
 
    * No floating-point values are permitted.
 
@@ -81,20 +86,30 @@ implementations will generate:
    * All items must follow the rules of RFC 7049 section 3.9 for
      canonical encoding, unless otherwise specified.
 
-
 Implementations SHOULD accept and parse documents that are not
 generated according to these rules, for future extensibility.
 However, implementations SHOULD reject documents that are not
-well-formed and valid.
+"well-formed" and "valid" by the definitions of RFC 7049.
 
-### Design overview: Authentication
+### Design overview: signing documents
 
-I'm going to specify a flexible authentication format that
-captures threshold signatures, multisignatures, and Merkle trees.
+We try to use a single document-signing approach here, using a hash
+function parameterized to accommodate lifespan information and an
+optional nonce.
+
+All the signed CBOR data used in this format is represented as a
+binary string, so that CBOR-processing tools are less likely to
+re-encode or transform it.  We use the CDDL production `bstr .cbor
+Object` to represent a binary string that must hold a valid encoding
+of a CBOR object whose type is `Object`.
+
+### Design overview: SNIP Authentication
+
+I'm going to specify a flexible authentication format for SNIPs that
+can handle threshold signatures, multisignatures, and Merkle trees.
 This will give us flexibility in our choice of authentication
 mechanism over time.
 
-The flexibility of this format is a
   * If we use Merkle trees, we can make ENDIVE diffs much much smaller,
     and save a bunch of authority CPU -- at the expense of requiring
     slightly larger SNIPs.
@@ -120,12 +135,12 @@ Merkle tree" is considered, from the client's point of view, the same as
 
 The authentication on a single snip is structured, in the abstract, as:
    - ITEM: The item to be authenticated.
-   - PATH: A list of N bits, representing a path through a Merkle tree from
+   - PATH: A string of N bits, representing a path through a Merkle tree from
      its root, where 0 indicates a left branch and 1 indicates a right
      branch.  (Note that in a left-leaning tree, the 0th leaf will have
      path 000..0, the 1st leaf will have path 000..1, and so on.)
-   - BRANCH: A list of N digests, representing the branches in a Merkle tree
-     that we are _not_ taking.
+   - BRANCH: A list of N digests, representing the digests for the
+     branches in the Merkle tree that we are _not_ taking.
    - SIG: A generalized signature (either a threshold signature or a
      multisignature) of a top-level digest.
    - NONCE: an optional nonce for use with the hash functions.
@@ -142,7 +157,10 @@ To validate the authentication on a SNIP, the client proceeds as follows:
 
     Algorithm: Validating SNIP authentication
 
+    Let N = the length of PATH, in bits.
+
     Let H = H_leaf(PATH, LIFESPAN, NONCE, ITEM).
+
     While N > 0:
        Remove the last bit of PATH; call it P.
        Remove the last digest of BRANCH; call it B.
@@ -171,7 +189,7 @@ parameters" below.
 ### Design overview: timestamps and validity.
 
 For future-proofing, SNIPs and ENDIVEs have separate time ranges
-indicating their validities.  Unlike with current designs, these
+indicating when they are valid.  Unlike with current designs, these
 validity ranges should take clock skew into account, and should not
 require clients or relays to deliberately add extra tolerance to their
 processing.  (For example, instead of saying that a document is "fresh"
@@ -199,9 +217,9 @@ validate it, and extract SNIPs from it.  Extracting these SNIPs may be
 trivial (if they are signed individually), or more complex (if they are
 signed via a merkle tree, and the merkle tree needs to be
 reconstructed).  This complexity is acceptable only to the extent that
-it reduces diff size.
+it reduces compressed diff size.
 
-Once the SNIPs are reconstructed, relays will hold them, and serve them
+Once the SNIPs are reconstructed, relays will hold them and serve them
 to clients.
 
 ### What isn't in this document
@@ -221,9 +239,9 @@ Each SNIP has three pieces: the part of the SNIP that describes the
 router; the part of that describes the SNIPs place within an ENDIVE, and
 the part that authenticates the whole SNIP.
 
-Why two _separate_ authenticated pieces?  Because (the router
-description) one is taken verbatim from the ENDIVE, and the other
-(the place within the ENDIVE) is computed from the ENDIVE by the
+Why two _separate_ authenticated pieces?  Because one (the router
+description) is taken verbatim from the ENDIVE, and the other
+(the location within the ENDIVE) is computed from the ENDIVE by the
 relays. Separating them like this helps ensure that the part
 generated by the relay and the part generated by the authorities
 can't interfere with each other.
@@ -258,11 +276,11 @@ and tell the client how to build a circuit through it.  The others
 are all optional.  In practice, I expect they will be encoded in most
 cases, but clients MUST behave properly if they are absent.
 
-More than one SNIPRouterData may exist at a time for a single
-router.  For example, there might be a longer version to represent
-a router to be used as a guard, and another to represent the same
-router when used as a hidden service directory.  (This is not
-possible in the voting mechanism that I'm working on, but relays
+More than one SNIPRouterData may exist in the same ENDIVE for a
+single router.  For example, there might be a longer version to
+represent a router to be used as a guard, and another to represent
+the same router when used as a hidden service directory.  (This is
+not possible in the voting mechanism that I'm working on, but relays
 and clients MUST NOT treat this as an error.)
 
 This representation is based on the routerstats and
@@ -274,17 +292,14 @@ published time, etc.
 > to any other type as we review and revise this design. It may turn
 > out to omit things that we need.
 
-> XXXX We need a way to say which fields here are included in outgoing CREATE
-> cells.
-
     ; A SNIPRouterData is a map from integer keys to values for
     ; those key.
     SNIPRouterData = {
         ; identity key.
-        0 => Ed25519PublicKey,
+        ? 0 => Ed25519PublicKey,
 
         ; ntor onion key.
-        1 => Curve25519PublicKey,
+        ? 1 => Curve25519PublicKey,
 
         ; list of link specifiers other than the identity key.
         ; If a client wants to extend to the same router later on,
@@ -320,12 +335,6 @@ published time, etc.
         * tstr => any,
     }
 
-    ; Ed25519 keys are 32 bytes, and that isn't changing.
-    Ed25519PublicKey = bstr .size 32
-
-    ; Curve25519 keys are 32 bytes, and that isn't changing.
-    Curve25519PublicKey = bstr .size 32
-
     ; For future-proofing, we are allowing multiple ways to encode
     ; families.  One is as a list of other relays that are in your
     ; family.  One is as a list of authority-generated family
@@ -353,8 +362,8 @@ published time, etc.
     ; ID to a bitmask of the supported versions.
     ProtoVersions = { ProtoId => ProtoBitmask }
 
-    ; integer protocols are reserved for future version of Tor. tstr ids
-    ; reserved for experimental and non-tor extensions.
+    ; Integer protocols are reserved for future version of Tor. tstr ids
+    ; are reserved for experimental and non-tor extensions.
     ProtoId = ProtoIdEnum / int / tstr
 
     ProtoIdEnum = &(
@@ -373,27 +382,26 @@ published time, etc.
     )
     ProtoBitmask = uint / biguint
 
-
     ; XXXX I've got to come back when I know what to do about exit
     ; policies.
     ExitPolicy = undefined
 
 
-### SNIPLocation: Locating a SNIP within an ENDIVE.
+### SNIPLocation: Locating a SNIP within a routing index.
 
 The SNIPLocation type can encode where a SNIP is located with
-respect to one or more routing indices.  Note that it does not
-need to be exhaustive: If a given IndexId is not listed for a
-given relay in one SNIP, clients should not infer that no other
-SNIPLocation for that relay exists.
+respect to one or more routing indices.  Note that a SNIPLocation
+does not need to be exhaustive: If a given IndexId is not listed for
+a given relay in one SNIP, clients should not infer that no other
+SNIPLocation for that relay exists with that index.
 
 
     ; SNIPLocation: we're using a map here because it's natural
     ; to look up indices in maps.
     SNIPLocation = {
-        ; A SNIP's location is given as a ranges in different
-        ; ranges.
-        + IndexId => IndexRange,
+        ; A SNIP's location is given as a ranges of values in different
+        ; indices.
+        * IndexId => IndexRange,
 
         ; For experimental and extension use -- denotes other kinds of
         ; indices.
@@ -411,15 +419,17 @@ SNIPLocation for that relay exists.
     IndexRange = [ lo: IndexPos,
                    hi: IndexPos ] / nil
 
-    ; For most indices, the ranges are 4-byte integers.  But for
+    ; For most indices, the ranges are encoded as 4-byte integers.  But for
     ; hsdir rings, they are binary strings.
-    IndexPos= uint / bstr
+    IndexPos = uint / bstr
 
 A bit more on IndexRanges: If an IndexRange's key is a bstr, then it may
 describe a range of binary values for keys or digests.  It does so by a
 series of prefixes.  For example, the IndexRange `[ h'AB12', h'AB24' ]`
 includes all the binary strings that start with `AB12`, `AB13`, and so on, up
 through all strings that start with `AB24`.
+Alternatively, you can think of a `bstr`-based IndexRange *(lo, hi)*
+as covering *lo*`00000...` through *hi*`fffffffff...`.
 
 ### SNIPSignature: How to prove a SNIP is in the ENDIVE.
 
@@ -428,13 +438,15 @@ validated as described in "Design overview: Authentication" above.
 
     ; Most elements in a SNIPSignature are positional and fixed
     SNIPSignature = [
-        ; The actual signature or signatures.
+        ; The actual signature or signatures.  If this is a single signature,
+        ; it's probably a threshold signature.  Otherwise, it's probably
+        ; a list containing one signature from each directory authority.
         SingleSig / MultiSig,
 
-        ; algorithm to use for the path througbh the merkle tree.
+        ; algorithm to use for the path through the merkle tree.
         d_alg : DigestAlgorithm,
         ; Path through merkle tree, possibly empty.
-        merkle_path : MerklePath ,
+        merkle_path : MerklePath,
 
         ; Lifespan information.  This is included as part of the input
         ; to the hash algorithm for the signature.
@@ -453,8 +465,7 @@ validated as described in "Design overview: Authentication" above.
     ; When we are using it as an input to a hash algorithm for computing
     ; signatures, we encode it as an 8-byte number for "published",
     ; followed by two 4-byte numbers for pre-valid and post-valid.
-    ; XXXX should this be a group, or a type?
-    LifespanInfo = [
+    LifespanInfo = (
         ; Official publication time in seconds since the epoch.  These
         ; MUST be monotonically increasing over time for a given set of
         ; authorities on all SNIPs or ENDIVEs that they generate: a
@@ -474,7 +485,10 @@ validated as described in "Design overview: Authentication" above.
         ; this object should be accepted.  The lifetime of an object is
         ; therefore equal to "(post-valid + pre-valid)".
         post-valid : uint32,
-    ]
+    )
+
+    ; A Lifespan is just the fields of Lifespan, encoded as a list.
+    Lifespan = [ LifespanInfo ]
 
     ; One signature on a SNIP or ENDIVE.  If the signature is a threshold
     ; signature, or a reference to a signature in another
@@ -487,7 +501,7 @@ validated as described in "Design overview: Authentication" above.
        ; A prefix of the key or the key's digest, depending on the
        ; algorithm.
        ?keyid : bstr,
-       ]
+    ]
 
     MultiSig = [ + SingleSig ]
 
@@ -495,10 +509,10 @@ validated as described in "Design overview: Authentication" above.
     ; indicate whether we're going left or right, and a list of
     ; hashes for the parts of the tree that we aren't including.
     ;
-    ; (It's safe to use a uint for the bits, since it will never
-    ; overflow 64 bits -- that would mean a merkle tree with too many
-    ; leaves to actually calculate on.)
-    MerklePath = [ uint, * bstr ]
+    ; (It's safe to use a uint for the number of bits, since it will
+    ; never overflow 64 bits -- that would mean a Merkle tree with
+    ; too many leaves to actually calculate on.)
+    MerklePath = [ uint, *bstr ]
 
 
 
@@ -514,8 +528,8 @@ include a set of bandwidths that can be combined into the index values --
 these changes less frequently, and therefore are more diff friendly.
 
 Note also that this format has more "wasted bytes" than SNIPs do: unlike when
-transmitting SNIPs, we can usefully compress ENDIVEs with even the most
-expensive compression algorithms we have.
+transmitting SNIPs, we can usefully compress ENDIVEs with gzip,
+lzma2, or so on.
 
 This section does not fully specify how to construct SNIPs from an ENDIVE;
 for the full algorithm, see section XXXX.
@@ -528,7 +542,7 @@ for the full algorithm, see section XXXX.
         sig: ENDIVESignature,
 
         ; Contents, as a binary string.
-        body: bstr .cbor ENDIVEContent,
+        body: encoded-cbor .cbor ENDIVEContent,
     ]
 
     ; XXXX do we want to do anything equivalent to current authority key
@@ -543,7 +557,7 @@ for the full algorithm, see section XXXX.
         ; of the input to the hash algorithm for the signature.
         ; Note that the lifespan of an ENDIVE is likely to be a subset
         ; of the lifespan of its SNIPs.
-        LifespanInfo,
+        Lifespan,
 
         ; Signatures across SNIPs, at some level of the Merkle tree.  Note
         ; that these signatures are not themselves signed -- having them
@@ -560,7 +574,8 @@ for the full algorithm, see section XXXX.
 
     ; A list of single signatures or a list of multisignatures. This
     ; list must have 2^signature-depth elements.
-    DetachedSNIPSignatures = [ *SingleSig ] / [ *MultiSig ];
+    DetachedSNIPSignatures =
+          [ *SingleSig ] / [ *MultiSig ]
 
     ENDIVEContent = {
 
@@ -568,7 +583,7 @@ for the full algorithm, see section XXXX.
         ; ENDIVE. See XXX for the full algorithm.
         sig_params : {
             ; When should we say that the signatures are valid?
-            lifespan : LifespanInfo,
+            lifespan : Lifespan,
             ; Nonce to be used with the signing algorithm for the signatures.
             ? signature-nonce : bstr,
 
@@ -589,8 +604,8 @@ for the full algorithm, see section XXXX.
 
         ; Documents for clients/relays to learn about current network
         ; parameters.
-        client-root-doc : bstr .cbor ClientRootDocument,
-        relay-root-doc : bstr .cbor RelayRootDocument,
+        client-root-doc : encoded-cbor .cbor ClientRootDocument,
+        relay-root-doc : encoded-cbor .cbor RelayRootDocument,
 
         ; Definitions for index group.  Each "index group" is all
         ; applied to the same SNIPs.  (If there is one index group,
@@ -637,18 +652,16 @@ for the full algorithm, see section XXXX.
     }
 
     ; Enumeration to identify how to generate an index.
-    IndexType = (
-        Indextype_Raw : 0,
-        Indextype_Weighted : 1,
-        Indextype_RSAId : 2,
-        Indextype_Ed25519Id : 3,
-        Indextype_RawNumeric : 4
-    )
+    Indextype_Raw = 0
+    Indextype_Weighted = 1
+    Indextype_RSAId = 2
+    Indextype_Ed25519Id = 3
+    Indextype_RawNumeric = 4
 
     ; An indexspec may given as a raw set of indices.  This is a fallback for
     ; cases where we simply can't construct an index any other way.
     IndexSpec_Raw = {
-        type: Indextype_Raw,
+        type : Indextype_Raw,
         first_index : IndexPos,
         ; This index is constructed by taking relays by index from the list
         ; of ENDIVERouterData, and putting them at a given point in the index.
@@ -656,8 +669,8 @@ for the full algorithm, see section XXXX.
     }
 
     ; An indexspec where we're placing routers from the list of
-    ; ENDIVERouterData, index and by their numeric weights.
-    IndexSpec_Numeric = {
+    ; ENDIVERouterData index, and by their numeric spans on the index.
+    IndexSpec_RawNumeric = {
         type: Indextype_RawNumeric,
         ; This index is constructed by taking relays by index from the list
         ; of ENDIVERouterData, and putting them at a given point in the index.
@@ -668,17 +681,17 @@ for the full algorithm, see section XXXX.
     ;
     ; Note that when a single bandwidth changes, it can change _all_ of
     ; the indices in a bandwidth-weighted index, even if no other
-    ; bandwidth changes.
-    IndexSpec_Weightd /= {
+    ; bandwidth changes.  That's why we only pack the bandwidths
+    ; here, and scale them as part of the reconstruction algorithm.
+    IndexSpec_Weighted = {
         type: Indextype_Weighted,
         ; This index is constructed by assigning a weight to each relay,
         ; and then normalizing those weights. See algorithm below in section
         ; XXX.
+        ; Limiting bandwidth weights to uint32 makes reconstruction algorithms
+        ; much easier.
         index_weights: [ * uint32 ],
     }
-    ; Limiting bandwidth weights to uint32 makes reconstruction algorithms
-    ; much easier.
-    uint32 = uint .size 4
 
     ; This index is computed from the RSA identity keys digests of all of the
     ; SNIPs. It is used in the HSv2 directory ring.
@@ -689,6 +702,7 @@ for the full algorithm, see section XXXX.
         ; Bitmap of which routers should be included.
         members : bstr,
     }
+
     ; This index is computed from the Ed25519 identity keys of all of the
     ; SNIPs.  It is used in the HSv3 directory ring.
     IndexSpec_Ed25519Id = {
@@ -722,9 +736,6 @@ for the full algorithm, see section XXXX.
         * tstr => any,
     }
 
-    ; 20 bytes or fewer: legacy RSA SHA1 identity fingerprint.
-    RSAIdentityFingerprint = bstr
-
     ; encoded-cbor is defined in the CDDL postlude as a bstr that is
     ; tagged as holding verbatim CBOR:
     ;
@@ -752,20 +763,22 @@ parameters, recommended versions, authority certificates, and so on.
     RootDocument = [
        sig : RootDocSignature,
        ; Client-relevant portion of the root document. Everybody fetches this.
-       cbody : bstr .cbor ClientRootDocument,
+       cbody : encoded-cbor .cbor ClientRootDocument,
        ; Relay-relevant portion of the root document. Only relays need to
        ; fetch this; the document can be validated without it.
-       ? sbody : bstr .cbor RelayRootDocument,
+       ? sbody : encoded-cbor .cbor RelayRootDocument,
     ]
     RootDocSignature = [
-       ; Multisignature of the two digests below.
+       ; Multisignature or threshold signature of the concatenation
+       ; of the two digests below.
        [ + SingleSig / MultiSig ],
 
        ; Lifespan information.  As with SNIPs, this is included as part
        ; of the input to the hash algorithm for the signature.
        ; Note that the lifespan of a root document is likely to be very long.
        LifespanInfo,
-       ; how is the digest computed?
+
+       ; how are c_digest and s_digest the digest computed?
        d_alg : DigestAlgorithm,
        ; Digest over the cbody field
        c_digest : bstr,
@@ -773,23 +786,46 @@ parameters, recommended versions, authority certificates, and so on.
        s_digest : bstr,
     ]
 
+
     ClientRootDocument = {
        params : NetParams,
+       ; List of certificates for all the voters.  These
+       ; authenticate the keys used to sign SNIPs and ENDIVEs and votes,
+       ; using the authorities longest-term identity keys.
        voters : [ + VoterCert ],
+
+       ; As in client-versions from dir-spec.txt
        ? recommend-versions: [ * tstr ],
+       ; As in recommended-client-protocols in dir-spec.txt
        ? recommend-protos: ProtoVersions,
+       ; As in required-client-protocols in dir-spec.txt
        ? require-versions: ProtoVersions,
+
+       ; For future extensions.
        * tstr => any,
     }
 
     RelayRootDocument = {
        params: NetParams,
+
+       ; As in server-versions from dir-spec.txt
        ? recommend-versions: [ * tstr ],
+       ; As in recommended-relay-protocols in dir-spec.txt
        ? recommend-protos: ProtoVersions,
+       ; As in required-relay-protocols in dir-spec.txt
        ? require-versions: ProtoVersions,
+
        * tstr => any,
     }
 
+    ; A NetParams encodes information about the Tor network that
+    ; clients and relays need in order to participate in it.  The
+    ; current list of parameters is described in the "params" field
+    ; as specified in dir-spec.txt.
+    ;
+    ; Note that there are separate client and relay NetParams now.
+    ; Relays are expected to first check for a defintion in the
+    ; RelayRootDocument, and then in the ClientRootDocument.
     NetParams = { *tstr => any }
 
 ## Certificates
@@ -804,7 +840,7 @@ algorithm, but support more key types.
     VoterCert = [
 
        ; One or more signatures over `content` using the provided lifetime.
-       ; Each signature should be treated independently
+       ; Each signature should be treated independently.
        [ + SingleSig ],
        ; A lifetime value, used (as usual ) as an input to the
        ; signature algorithm.
@@ -934,8 +970,14 @@ underlying digest function H() with a preferred input block size of B.
 (B should be chosen as the natural input size of the hash function, to
 aid in precomputation.)
 
+We also define `H_sign()`, to be used outside of SNIP authentication
+where we aren't using a Merkle tree at all.
+
 PATH must be no more than 64 bits long.  NONCE must be no more than B-33
 bytes long.
+
+     H_sign(LIFESPAN, NONCE, ITEM) =
+        H( PREFIX(OTHER_C, LIFESPAN, NONCE) || ITEM)
 
      H_leaf(PATH, LIFESPAN, NONCE, ITEM) =
         H( PREFIX(LEAF_C, LIFESPAN, NONCE) ||
@@ -952,74 +994,20 @@ bytes long.
      PREFIX(leafcode, lifespan, nonce) =
           U64(leafcode) ||
           U64(lifespan.published) ||
-          U64(lifespan.pre-valid) ||
-          U64(lifespan.post-valid) ||
+          U32(lifespan.pre-valid) ||
+          U32(lifespan.post-valid) ||
           U8(len(nonce)) ||
           nonce ||
           Z(B - 33 - len(nonce))
 
      LEAF_C = 0x8BFF0F687F4DC6A1
      NODE_C = 0xA6F7933D3E6B60DB
+     OTHER_C = 0x7365706172617465
 
      U64(n) -- N encoded as a big-endian 64-bit number.
      Z(n) -- N zero bytes.
      len(b) -- the number of bytes in a byte-string b.
      bits(b) -- the number of bits in a bit-string b.
 
-## Common CDDL items
 
-    ; Enumeration to define integer equivalents for all the digest algorithms
-    ; that Tor uses anywhere.  Note that some of these are not used in
-    ; this spec, but are included so that we can use this production
-    ; whenever we need to refer to a hash function.
-    DigestAlgorithm = &(
-        NoDigest : 0,
-        SHA1     : 1,     ; deprecated.
-        SHA2-256 : 2,
-        SHA2-512 : 3,
-        SHA3-256 : 4,
-        SHA3-512 : 5,
-        Kangaroo12-256 : 6,
-        Kangaroo12-512 : 7,
-    )
 
-    ; A digest is represented as a binary blob.
-    Digest = bstr
-
-    ; Enumeration for different signing algorithms.
-    SigningAlgorithm = &(
-       RSA-OAEP-SHA1   : 1,     ; deprecated.
-       RSA-OAEP-SHA256 : 2,     ; deprecated.
-       Ed25519         : 3,
-       Ed448           : 4,
-       BLS             : 5,     ; Not yet standardized.
-
-       ; XXX specify how references to other documents would be described.
-    )
-
-    PKAlgorithm = &(
-       SigningAlgorithm,
-
-       Curve25519 : 100,
-       Curve448   : 101
-    )
-
-    KeyUsage = &(
-       ; A master unchangeable identity key for this authority.  May be
-       ; any signing key type.  Distinct from the authority's identity as a
-       ; relay.
-       AuthorityIdentity : 0x10,
-       ; A medium-term key used for signing SNIPs, votes, and ENDIVEs.
-       SNIPSigning : 0x11,
-
-       ; XXXX these are designed not to collide with the "list of certificate
-       ; types" or "list of key types" in cert-spec.txt
-    )
-
-    CertType = &(
-       VotingCert : 0x10,
-       ; XXXX these are designed not to collide with the "list of certificate
-       ; types" in cert-spec.txt.
-    );
-
-    LinkSpecifier = bstr;
