@@ -1,0 +1,125 @@
+Walking Onions: week 4 update
+
+ On our current grant from the zcash foundation, I'm working on a
+full specification for the Walking Onions design.  I'm going to try to
+send out these updates once a week.
+
+My previous updates are linked below:
+
+ Week 1:
+   formats, preliminaries, git repositories, binary diffs,
+   metaformat decisions, and Merkle Tree trickery.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014178.html
+
+ Week 2:
+   Specifying details of SNIP and ENDIVE formats, in CDDL.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014181.html
+
+ Week 3:
+   Expanding ENDIVEs into SNIPs.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014194.html
+
+
+This week was pretty rough for me; the impact of being isolated at home
+is starting to kick in, and my kid is still trying to find a schedule
+that works for him.  I got a lot less done this week than I had planned.
+
+That said, I _did_ get some good design done, in two areas: voting, and
+circuit extension.
+
+== Voting
+
+I'm trying to generalize our voting algorithms to minimize the need
+for new consensus formats in the future.  I want most new fields to be
+self-describing in terms of how to tabulate votes for them.  Trying to
+work this out has taken a bunch of energy, though and I'm not quite sure
+I'm doing it right.  The work here is unfinished.
+
+I still think it's reasonable to encode existing votes and new votes in
+a new cbor-based structure.  By using compression, a little redundancy
+in votes shouldn't hurt us too badly -- though that's something I need
+to benchmark eventually before we build this.
+
+I've come up with a way for voters to use diffs and compression when
+_uploading_ votes: first, the voter asks for a summary of what
+mechanisms are supported by the recipient and which older votes it has.
+Next, the voter can use that information to upload a vote diff with an
+appropriate compression format.
+
+Right now I believe that I have most of the fields for the votes figured
+out, but I need to clean them up a _lot_.  SNIP bodies can work
+similarly to how microdescriptors work now, if we like -- or they could
+involve individual votes on input fields.  I think I'm going to write up
+what I can here, and then revisit SNIP bodies once I've worked some on
+section 6 (the "fancy" client behavior).
+
+While working on voting, I found a need for various changes in the
+already written sections.  For one example, the previous description
+of the ENDIVE format included the SNIP signatures as part of the
+signed ENDIVE.  But we can't actually generate that as part our
+voting protocol: the authorities can't sign SNIPs until they know
+the complete ENDIVE contents, and so putting the SNIP signatures in
+the signed part of the ENDIVE would add an extra round of voting and
+signatures.  Instead, I've moved the SNIP signatures (and related
+stuff) into the signature header of the ENDIVE.
+
+I've also worked somewhat on the so-called "root document" holding
+the network configuration parameters.  I'm hoping that this document
+can have an effective lifetime of weeks or months for clients, and
+that clients can download only the parts that they need.  The format
+is in section 02, but needs more description.
+
+The work-in-progress voting writeup is in [VOTING], but it is not so
+close to done. I think it will need a lot of writing before it's
+ready for even preliminary review; it doesn't make sense as it is,
+and it contradicts itself in places.
+
+== Extending circuits
+
+There are a few wrinkles here that we hadn't actually specified in
+earlier walking onions work!
+
+When one relay is told to extending a circuit to a target relay by
+index, the extending relay actually needs to include part of a SNIP for
+that second relay: otherwise, the extending relay won't know which onion
+key the client expects to receive for it.  We don't want to send an
+entire SNIP -- only the parts that the client will expect to match.
+
+In addition to wide EXTEND cells, we'll also need wide RENDEZVOUS and
+INTRODUCE1 and INTRODUCE2 and TRUNCATED cells.  All together, that means
+that having a general "cell fragmentation" mechanism is probably
+warranted; I've started a separate proposal for that [WIDE_EVERYTHING].
+
+We're going to need a general extension format for CREATE and EXTEND
+cells, to signal other information, like SNIPs, requests for SNIPs, and
+so on.  We also need a way to ask for SNIPs without actually performing
+a handshake.  I've tried to fit these all together in a fairly logical
+way in [EXTENDING], but there's more to write here, including examples.
+
+== Fun facts
+
+The walking onion proposal is now the second-longest that we have
+ever had, behind only proposal 224 (v3 hidden services).
+
+== Next steps
+
+In this coming week I plan to try to wrap up section 3 on voting and
+section 5 on extending circuits.  I'm going to go back to the start
+of section 2 and start revising all I've written so far for
+consistency.
+
+Time permitting, I want to sketch out all the knowns and unknowns
+for section 6 (on tricky client behavior).
+
+
+
+
+[EXTENDING] https://github.com/nmathewson/walking-onions-wip/blob/master/specs/05-extending-circuits.md
+
+[VOTING]  https://github.com/nmathewson/walking-onions-wip/blob/master/specs/02-voting-and-authorities.md
+
+[WIDE_EVERYTHING] https://github.com/nmathewson/walking-onions-wip/blob/master/other-proposals/xxx-wide-everything.md
+
