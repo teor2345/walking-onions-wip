@@ -1,8 +1,28 @@
 
 
-Make sure all signatures include digst algorithm and whatever else is
+Make sure all signatures include digest algorithm and whatever else is
 missing in SNIPSignature.
 
-Use SoftwareDescription in votes.
+Use SoftwareDescription in votes???
+
+
+
+
+Hey, here is a thing.  Let's make the voting rules actually good enough to
+handle everything, then describe how to apply them.  Make these detached from
+the voted-upon things.
+
+Define these rules using some basic combinator stuff.  Then use them to
+compute 99% of the stuff in the ENDIVE.
+
+Define collation using another rule.
+
+
+
+
+
+Still not sure how indices work and how Wxx weights happen.
+
+
 
 
