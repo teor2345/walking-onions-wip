@@ -705,7 +705,7 @@ for the full algorithm, see section XXXX.
     }
 
     ; Information about a single router in an ENDIVE.
-    ENDIVERouterData : {
+    ENDIVERouterData = {
         ; The authority-generated SNIPRouterData for this router.
         1 => encoded-cbor .cbor SNIPRouterData,
         ; The RSA identity, or a prefix of it, to use for HSv2 indices.
