@@ -94,37 +94,31 @@ appropriate.
 > right for this, since Accept-Vote-Diffs-From does not fit with its
 > semantics.
 
-## Primitives for voting
+## A generalized algorithm for voting
 
 Unlike with previous versions of our voting specification, here I'm
-going to try to describe pieces the voting algorithm in terms of simpler
-voting operations.  Each voting operation will be named, and data will
-frequently self-describe what voting operation is to be used on it.
+going to try to describe pieces the voting algorithm in terms of
+simpler voting operations.  Each voting operation will be named and
+possibly parameterized, and data will frequently self-describe what
+voting operation is to be used on it.
 
-A voting operation takes place over a "voteable field".  Each voteable
-field will have a distinct identity within a given context.  For each
-voteable field, each authority may vote at most once.  The vote for a
-field may be an integer, a boolean, a binary string, a text string.  The
-vote for a field may also be a list of integers, booleans, binary
-strings, text strings, or nil.
+Voting operations may operate over different CBOR types, and are
+themselves specified as CBOR objects.
 
-Voting operations may be implicit, in which case they are specified
-here, or explicit, in which case they are specified in the vote.
+A voting operation takes place over a given "voteable field".  Each
+authority that specifies a value for a voteable field MUST specify
+which voting operation to use for that field.  Specifying a voteable
+field without a voting operation MUST be taken as specifying the
+voting operation "None" -- that is, voting against a consensus.
 
-Each voting operation will either produce an output or a lack of
-consensus.
+On the other hand, an authority MAY specify a voting operations for
+a field without casting any vote for it.  This means that the
+authority has an opinion on how to reach a consensus about the
+field, without having any preferred value for the field itself.
 
-Unless otherwise specified, there is no consensus for a voting operation
-unless more than half of the authorities have voted on the field.  There
-is also no consensus if the voting operation for the field is explicit,
-and fewer than half of the authorities have agreed on the same voting
-operation.
+### Constants used with voting operations
 
-Individual voting operations are listed below.  In the descriptions
-below, "more than half" is to be interpreted strictly: "more than half
-of two" for example, means "at least 1", not "one or more".
-
-Voting operations may be parameterized by an integer.
+Many voting operations may be parameterized by an integer.
 
 The following constants are defined:
 
@@ -134,8 +128,12 @@ are absent.
 `N_PRESENT` -- the total number of authorities whose votes are present for
 this vote.
 
-`N_FIELD` -- the total number of authorites who votes for a given field are
+`N_FIELD` -- the total number of authorites whose votes for a given field are
 present.
+
+Necessarily, `N_FIELD` <= `N_PRESENT` <= `N_AUTH` -- you can't vote
+on a field unless you've cast a vote, and you can't cast a vote
+unless you're an authority.
 
 `QUORUM_AUTH` -- The lowest integer that is greater than half of
 `N_AUTH`.  Equivalent to CEIL( (N_AUTH+1)/2 ).
@@ -146,6 +144,49 @@ present.
 `QUORUM_FIELD` -- The lowest integer that is greater than half of
 `N_FIELD`.  Equivalent to CEIL( (N_PRESENT+1)/2 ).
 
+### Producing consensus on a field
+
+Each voting operation will either produce a CBOR output, or produce
+no consensus.  Unless otherwise stated, all CBOR outputs are to be
+given in canonical form.  To compute the consensus for a field, the
+authorities follow this algorithm:
+
+    Algorithm: CONSENSUS(OPERATION-VOTES, VOTES)
+
+    (Computes a consensus on a field, given that the authorities
+    casting votes have specified the voting operations in
+    OPERATION-VOTES, and the authorities casting votes for this
+    field)
+
+    Requires: LEN(VOTES) <= LEN(OPERATION-VOTES).
+    Requires: LEN(OPERATION-VOTES) <= N_PRESENT
+
+    Identity the most frequent member OP of OPERATION-VOTES.  (Two
+    members are the same iff they have exactly the same operation
+    and parameters.)  If there is no unique most frequent member,
+    return "no consensus" for this field.
+
+    Let OP_COUNT = the number of times that OP appears in
+    OPERATION-VOTES.
+
+    If OP < QUORUM_AUTH, return "No consensus" for this field.
+
+    Otherwise, invoke the operation specified by OP over the
+    provided VOTES.
+
+In other words, there is only a consensus for a field if more than
+half of the total authorities agree how to vote on that field.
+
+Below we specify a number of operations, and the parameters that
+they take.  We begin with operations that apply to "simple" values
+(integers and binary strings), then show how to compose them to
+larger values.
+
+### Voting operations for simple values
+
+### Voting operations for lists
+
+### Voting operations for maps
 
 ### IntMedian [N]
 
