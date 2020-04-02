@@ -118,7 +118,12 @@ field, without having any preferred value for the field itself.
 
 ### Constants used with voting operations
 
-Many voting operations may be parameterized by an integer.
+Many voting operations may be parameterized by an unsigned integer.
+In some cases the integers are constant, but in
+
+When we encode these constants, we encode them as short strings
+rather than as integers.
+
 
 The following constants are defined:
 
@@ -143,6 +148,24 @@ unless you're an authority.
 
 `QUORUM_FIELD` -- The lowest integer that is greater than half of
 `N_FIELD`.  Equivalent to CEIL( (N_PRESENT+1)/2 ).
+
+We define `SUPERQUORUM_`..., variants of these fields as well, based
+on the lowest integer that is greater than 2/3 majority of the
+underlying field.  `SUPERQUORUM_x` is thus equivalent to
+CEIL( (N_x * 2 + 1) / 3 )
+
+We need to encode these arguments; we do so as short strings.
+
+    IntOpArgument = uint / "auth" / "present" / "field" /
+         "qauth" / "qpresent" / "qfield" /
+         "sqauth" / "sqpresent / "sqfield"
+
+> I had thought of using negative integers here to encode these
+> special constants, but that seems too error-prone.
+
+> Alternatively, we could formulate QUORUM_x as CEIL( x / 2 + epsilon )
+> and SUPERQUORUM_x as CEIL( x * 2/3 + epsilon), for epsilon being a
+> tiny positive number.  Is that better?
 
 ### Producing consensus on a field
 
@@ -182,82 +205,247 @@ they take.  We begin with operations that apply to "simple" values
 (integers and binary strings), then show how to compose them to
 larger values.
 
+Note that while some voting operations take other operations as
+parameters, we are _not_ supporting full recursion here: there is a
+strict hierarchy of operations, and more complex operations can only
+have simpler operations in their parameters.
+
+
+### Generic voting operations
+
+#### None
+
+This voting operation takes no parameters, and always produces "no
+consensus".  It is encoded as:
+
+    NoneOp = { op : "None" }
+
+When encounting an unrecognized or nonconforming voting operation,
+_or one which is not recognized by the consensus-method in use_, the
+authorities proceed as if the operation had been "None".
+
 ### Voting operations for simple values
 
-### Voting operations for lists
+We define a "simple value" according to these cddl rules:
 
-### Voting operations for maps
+    SimpleVal = BasicVal / SimpleTupleVal
+    BasicVal = boolean / int / bstr / tstr
+    SimpleTuple = [ *BasicVal ]
 
-### IntMedian [N]
+We also need the ability to encode the types for these values:
 
-Discard all non-Integer votes.  To take the 'median' of a set of N
-integer votes, first put them in ascending sorted order.  If N is odd,
-take the center vote (the one at position (N+1)/2).  If N is even, take
-the lower of the two center votes (the one at position N/2).
+    SimpleType = BasicType / SimpleTupleType
+    BasicType = "bool" /  "uint" / "sint" / "bstr" ] / "tstr"
+    SimpleTupleType = [ b"tuple", *BasicType ]
+
+In other words, a SimpleVal is either an non-compound base value, or is
+a tuple of such values.
+
+We encode these operations as:
+
+    SimpleOp = IntMedianOp / ModeOp / FirstWithOp / LastWithOp /
+        BitThresholdOp / NoneOp
+
+#### IntMedian
+
+_Parameters_: MIN_VOTES (an integer)
+
+Encoding:
+
+    IntMedianOp = { op : "IntMedian", min : IntOpArgument }
+
+Discard all non-integer votes.  If there are fewer than MIN_VOTES
+votes remaining, return "no consensus".
+
+Put the votes in ascending sorted order.  If the number of votes N
+is odd, take the center vote (the one at position (N+1)/2).  If N is
+even, take the lower of the two center votes (the one at position
+N/2).
 
 For example, the IntMedian of the votes ["String", 2, 111, 6] is 6.
 The IntMedian of the votes ["String", 77, 9, 22, "String", 3] is 9.
 
-If the parameter N is provided, then there must be at least N votes or there
-is no consensus.
+#### Mode
 
-### FirstMode [N]
+_Parameters_: `MIN_COUNT` (an integer), `BREAK_TIES_LOW` (a boolean),
+`TYPE` (a SimpleType)
 
-Discard all votes that are not booleans, integers, byte strings, or text
-strings. Find the most frequent value in the votes.  If there is a tie,
-break ties in favor of lower values.  (Sort by cbor canonical order.)
+    ModeOp = { op : "Mode",
+               min : IntOpArgument,
+               tie_low : boolean,
+               type : SimpleType
+    }
 
-If the parameter N is provided, then the mode must be listed in at least N
-votes or there is no consensus.
+Discard all votes that are not of the specified type.  Of the
+remaining votes, look for the value that has received the most
+votes.  If no value has received at least `MIN_COUNTS` votes, then
+return "no consensus".
 
-### LastMode [N]
+If there is a single value that has received the most votes, return
+it. Break ties in favor of lower values if `BREAK_TIES_LOW` is true,
+and in favor of higher values of `BREAK_TIES_LOW` is false.
+(Perform comparisons in canonical cbor order.)
 
-As FirstMode, but break ties in favor of higher values.
+#### FirstWith
 
-### FirstWith [N]
+_Parameters_: `MIN_COUNT` (an integer), `TYPE` (a SimpleType)
 
-Discard all votes that are not booleans, integers, byte strings, or text
-strings. Sort in canonical cbor order.  Return the first element
-that is listed in at least N votes.
+    ModeOp = { op : "FirstWith",
+               min : IntOpArgument,
+               type : SimpleType
+    }
 
-### LastWith [N]
+Discard all votes that are not of the specified TYPE.  Sort in
+canonical cbor order.  Return the first element that received at
+least MIN_COUNT votes.
 
-Discard all votes that are not booleans, integers, byte strings, or text
-strings. Sort in canonical cbor order.  Return the final element
-that is listed in at least N votes.
+#### LastWith
 
-### IntMean [N]
+    ModeOp = { op : "LastWith",
+               min : IntOpArgument,
+               type : SimpleType
+    }
 
-Discard all non-Integer votes.  To take the integer 'mean' of a set of N
-integer votes, compute FLOOR(SUM(votes)/N).
+As FirstWith, but return the last element that received at least
+MIN_COUNT votes.
 
-For example, the IntMean of [7, 99, 11, 6, 9] is 26.
+#### BitThreshold
 
-If the parameter N is provided, then there must be at least N votes or there
-is no consensus.
+Parameters: `LowerBound` (an integer >= 1)
 
-### SetJoin [N]
+    ModeOp = { op : "BitThreshold",
+               lb : IntOpArgument,
+    }
 
-Discard all votes that are not lists.  From each list, remove values
-that are not booleans, integers, byte strings, or text strings.
+These are usually not needed, but are quite useful for
+building some ProtoVer operations.
 
-To take the "SetJoin[N]" of the resulting lists, construct a list
-containing exactly those elements that are listed in N or more of the of
-the input lists, once each.  Sort this list in canonical cbor order.
+Discard all votes that are not of type uint or bstr; construe bstr
+inputs as having type "biguint".
 
-Note that if N=1, then this operation is equivalent to a set union.
+The output is a uint or biguint in which the b'th bit is set iff the
+b'th bit is set in at least `LowerBound` of the votes.
 
-### Special
+### Voting operations for lists
 
-If a voting operation is described as "Special", then any field
-using it is generated in some field-specific way.  This is only
-usable for fields whose voting operations are specified in this
-document.
+These operations work on lists of SimpleVal:
 
-### None
+    ListVal = [ * SimpleVal ]
 
-The voting operation "None" never produces a consensus.
+    ListType = [ b"list",
+                 [ *SimpleType ] / nil ]
 
+They are encoded as:
+
+    ListOp = SetJoinOp
+
+#### SetJoin
+
+Parameters: `LowBound` (an integer >= 1).
+Optional parameters: `TYPE` (a SimpleType.)
+
+Encoding:
+    SetJoinOp = {
+       op : "SetJoin",
+       lb : IntOpArgument,
+       ? type : SimpleType
+    }
+
+Discard all votes that are not lists.  From each vote,
+discard all members that are not of type 'TYPE'.
+
+For the consensus, construct a new list containing exactly those
+elements that appears in at least `LowerBound` votes.
+
+(Note that the input votes may contain duplicate elements.  These
+must be treated as if there were no duplicates: the vote
+[1, 1, 1, 1] is the same as the vote [1]. Implementations may want
+to preprocess votes by discarding all but one instance of each
+member.)
+
+### Voting operations for maps
+
+Map voting operations work over maps from key types to other non-map
+types.
+
+    MapVal = { * SimpleVal => ItemVal }
+    ItemVal = ListVal / SimpleVal
+
+    MapType = [ b"map", [ *SimpleType ] / nil, [ *ItemType ] / nil ]
+    ItemType = ListType / SimpleType
+
+They are encoded as:
+
+    MapOp = MapJoinOp / MergeDerivedOp
+
+#### MapJoin
+
+Parameters:
+   `KeyLowBound` (an integer >= 1)
+   `KeyType` (a SimpleType type)
+   `ItemOperation` (A non-MapJoin voting operation)
+
+Encoding:
+
+    MapJoinOp = {
+       op : "MapJoin"
+       key : SimpleType,
+       keylb : IntOpArgument,
+       item-op : ListOp / SimpleOp
+    }
+
+First, discard all votes that are not maps.  Then consider the set
+of keys from each vote as if they were a list, and apply
+`SetJoin[KeyLowBound,KeyType]` to those lists.  The resulting list
+is a set of keys to consider including in the output map.
+
+For each key in the output list, run the sub-voting operation
+`ItemOperation` on the values it received in the votes.  Discard all
+keys for which the outcome was "no consensus".
+
+The final vote result is a map from the remaining keys to the values
+produced by the voting operation.
+
+#### StructJoin
+
+    ; Encoding
+    StructItemOp = ListOp / SimpleOp / MapJoinOp / DerivedItemOp
+
+    VoteableStructKey = int / tstr
+
+    StructJoinOp = {
+        op : "StructJoin",
+        key_rules : {
+            * VoteableStructKey => StructItemOp,
+        }
+        ? unknown_rule : StructItemOp
+    }
+
+> xxxx write this up better, but the idea is that for each key, you
+> apply the given StructItemOp.
+
+#### DerivedFromField
+
+    ;Encoding
+    DerivedItemOp = {
+        op : "DerivedFrom",
+        fields : [ +SourceField ]
+    }
+
+    SourceField = [ FieldSource, VoteableStructKey ]
+    FieldSource = "M" ; Meta
+               / "CR" ; ClientRoot
+               / "SR" ; ServerRoot
+               / "RM" ; Relay-meta
+               / "RL" ; Relay-legacy
+               / "RS" ; Relay-SNIP
+
+> xxxx write this up better, but the idea is that this field is
+> derived from some other field, and so we should take the vote on
+> _that_ field, and then look at the votes on this field which
+> should be the same for everybody who voted on that field 'right'.
+>
+> Most stuff for relays is derived from published / relay-digest.
 
 ## A CBOR-based metaformat for votes.
 
@@ -277,30 +465,35 @@ are to be formatted.
         body : bstr .cbor VoteContent
     ]
 
-    ; XXXX I need to decide what to do with VoteableSection. In my
-    ;   original design, all voteable objects were self-describing,
-    ;   but we need to decide whether that makes sense.
-
     VoteContent = {
-        ; Information about the voter itself
-        voter : VoterSection,
-        ; Meta-information that the authorities vote on, which does
-        ; not actually appear in the ENDIVE or consensus directory.
-        meta : MetaSection .within VoteableSection,
-        ; Fields that appear in the client root document.
-        client-root : RootSection .within VoteableSection,
-        ; Fields that appear in the server root document.
-        server-root : RootSection .within VoteableSection,
+       ; List of supportd consensus methods.
+       consensus-methods : [ + uint ],
+
+        ; How should the votes within the individual sections be
+        ; computed?
+        voting-rules : VotingRules,
+
         ; Information that the authority wants to share about this
         ; vote, which is not for voting.
         notes : NoteSection,
+
+        ; Meta-information that the authorities vote on, which does
+        ; not actually appear in the ENDIVE or consensus directory.
+        meta : MetaSection .within VoteableSection,
+
+        ; Fields that appear in the client root document.
+        client-root : RootSection .within VoteableSection,
+        ; Fields that appear in the server root document.
+        server-root : RootSection .with VoteableSection,
         ; Information about each relay.
         relays : RelaySection,
         ; Information about indices.
-        indices : IndexSection,
+        indices : IndexSection, 
+
         * tstr => any
     }
 
+    ; Self-description of a voter.
     VoterSection = {
         ; human-memorable name
         name : tstr,
@@ -326,13 +519,19 @@ are to be formatted.
         * tstr => any,
     }
 
-    ; XXXX
-    IndexSection = nil
+    IndexSection = {
+        IndexId => [ * IndexRule ],
+    }
 
-    ; XXXX nonconformant with VoteableSection XXX
+    IndexRule = int / tstr
+
+    VoteableValue =  MapVal / ListVal / SimpleVal
+    VoteableSection = {
+       VoteableStructKey => VoteableValue,
+    }
+
+    ; the meta-section is voted on, but does not appear in the ENDIVE.
     MetaSection = {
-       ; List of supportd consensus methods.
-       consensus-methods : [ + uint ],
        ; Seconds to allocate for voting and distributing signatures
        voting-delay: [ vote_seconds: uint, dist_seconds: uint ],
        ; Proposed time till next vote.
@@ -346,8 +545,7 @@ are to be formatted.
        ; Current and previous shared-random values
        ? cur-shared-rand : [ reveals : uint, rand : bstr ],
        ? prev-shared-rand : [ reveals : uint, rand : bstr ],
-       ?shared-rand-commit : SRCommit,
-       ; Parameters used for voting only.
+       ; extensions.
        * tstr => Voteable
     };
 
@@ -367,24 +565,32 @@ are to be formatted.
        * tstr => Voteable
     }
 
+    ; A NoteSection is used to convey information about the voter and
+    ; its vote that is not actually voted on.
     NoteSection = {
-       flag-thresholds : { tstr => any },
-       bw-file-headers : {tstr => any },
+       ; Information about the voter itself
+       voter : VoterSection,
+       ; Information that the voter used when assigning flags.
+       ? flag-thresholds : { tstr => any },
+       ; Headers from the bandwidth file that the
+       ? bw-file-headers : {tstr => any },
+       ? shared-rand-commit : SRCommit,
        * tstr => any
     }
+
     RelaySection = {
-       * bstr => RelayInfo .within VotingRule,
+       * bstr => RelayInfo,
     }
 
     RelayInfo = [
-       meta : RelayMetaInfo,
-       snip : RelaySNIPInfo,
-       ? legacy : RelayLegacyInfo,
-    ]
+       meta : RelayMetaInfo .within VoteableSection,
+       snip : RelaySNIPInfo .within VoteableSection,
+       ? legacy : RelayLegacyInfo  .within VoteableSection,,
+    }
 
     ; XXXXXX
     RelayMetaInfo = nil
-    RelaySNIPInfo = nil
+    RelaySNIPInfo = SNIPRouterData ; XXXX does this fit?
 
     ; XXXXX xxx i'm probably missing something here.
     RelayLegacyInfo = {
@@ -400,11 +606,8 @@ are to be formatted.
        ? dirport : uint,
        ? policy-summary : [ + tstr ],
        ? version : tstr,
-       ? weight : {
-          bw : uint,
-          ? measured : bool,
-          ? unmeasured : bool
-       },
+       ? measured_weight : uint,
+       ? unmeasured_weight : uint,
        * tstr => any,
     }
 
@@ -420,41 +623,72 @@ are to be formatted.
 
     ; ==========
 
-    VoteableSection = {
-        * tstr => Voteable
-    }
+    VotingRules = {
+        meta : SectionRules,
+        root : SectionRules,
+        relay : RelayRules,
+        indices : SectionRules,
+     }
 
-    Voteable = [
-       rule : VotingRule / [ VotingRule, uint ],
-       content : any
-    ]
+     SectionRules = {
+        * VoteableKey => VotingOp
+     }
 
-    VotingRule = &(
-       None          : 0,
-       Special       : 1,
-       IntMedian     : 2,
-       LowMode       : 3,
-       HighMode      : 4,
-       FirstWith     : 5,
-       LastWith      : 6,
-       IntMean       : 7,
-       SetJoin       : 8,
-    )
+     VotingOp = MapOp / ListOp / SimpleOp / UnknownOp
 
+     UnknownOp = {
+         op : tstr,
+         * tstr => any
+     }
 
+     RelayRules = {
+         meta : SectionRules,
+         snip : SectionRules,
+         legacy : SectionRules,
+     }
 
+## Computing a consensus.
 
-Kinds of voting rule: low-mode, high-mode, median.
+To compute a consensus, the relays first verify that all the votes are
+timely and correctly signed by real authorities.  If they have two
+votes from an authority, they SHOULD issue a warning, and they
+should take the one that is published more recently.
 
-xx In endive need to vote on what the snips contents are, what the
-adjunct data are, how each index works.  because of eliding, only
-need to have rules for one data element per relay.  but if a new
-data item is added in, what happens? does that get included or
-excluded? let's say majority in both cases decide.
+> XXXX Teor suggests that maybe we shouldn't warn about two votes
+> from an authority for the same period, and we could instead have a
+> more resilient process here.  Most interesting...
 
-xx let's say that consensus method 100 is the first one for walking
-onions
+Next, the authorites determine the consensus method as they do today,
+using the field "consensus-method".  This can also be expressed as
+the voting operation
+`LastWith[SUPERQUORUM_PRESENT, uint]`.
 
+If there is no consensus for the consensus-method, then voting stops
+without having produced a consensus.
+
+Note that unlike the current voting algorithm, the consensus method
+does not determine the way to vote on every individual field: that
+aspect of voting is controlled by the voting-rules.  Instead, the
+consensus-method changes other aspects of this voting, such as:
+
+    * Adding, removing, or changing the semantics of voting
+      operations.
+    * Changing the set of documents to which voting operations apply.
+    * Otherwise changing the rules that are set out in this
+      document.
+
+Once a consensus-method is decided, the next step is to compute the
+consensus for other sections in this order: `meta`, `client-root`,
+`server-root`, and `indices`.  The consensus for each is calculated
+according to the operations given in the corresponding section of
+VotingRules.
+
+Next the authorities compute a consensus on the `relays` section,
+which is done slightly differently, according to the rules of
+RelayRules element of VotingRules.
+
+Finally, the authorities transform the resulting sections into an
+ENDIVE and a legacy consensus.
 
 ## Deriving older vote formats.
 
@@ -462,7 +696,7 @@ The data included in a VoteDocument can be used to reconstruct the
 same data that would be present in a legacy vote, and therefore can
 be used to compute legacy consensus documents for as long as they may
 be needed.  Here we describe how to compute these contents.
-
+XXXX
 xxx
 
 ## Computing an ENDIVE.
