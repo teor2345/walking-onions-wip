@@ -154,11 +154,10 @@ on the lowest integer that is greater than 2/3 majority of the
 underlying field.  `SUPERQUORUM_x` is thus equivalent to
 CEIL( (N_x * 2 + 1) / 3 )
 
-We need to encode these arguments; we do so as short strings.
-
+    ; We need to encode these arguments; we do so as short strings.
     IntOpArgument = uint / "auth" / "present" / "field" /
          "qauth" / "qpresent" / "qfield" /
-         "sqauth" / "sqpresent / "sqfield"
+         "sqauth" / "sqpresent" / "sqfield"
 
 > I had thought of using negative integers here to encode these
 > special constants, but that seems too error-prone.
@@ -218,6 +217,7 @@ have simpler operations in their parameters.
 This voting operation takes no parameters, and always produces "no
 consensus".  It is encoded as:
 
+    ; "Don't produce a consensus".
     NoneOp = { op : "None" }
 
 When encounting an unrecognized or nonconforming voting operation,
@@ -228,21 +228,22 @@ authorities proceed as if the operation had been "None".
 
 We define a "simple value" according to these cddl rules:
 
+    ; Simple values are primitive types, and tuples of primitive types.
     SimpleVal = BasicVal / SimpleTupleVal
-    BasicVal = boolean / int / bstr / tstr
-    SimpleTuple = [ *BasicVal ]
+    BasicVal = bool / int / bstr / tstr
+    SimpleTupleVal = [ *BasicVal ]
 
 We also need the ability to encode the types for these values:
 
+    ; Encoding a simple type.
     SimpleType = BasicType / SimpleTupleType
-    BasicType = "bool" /  "uint" / "sint" / "bstr" ] / "tstr"
-    SimpleTupleType = [ b"tuple", *BasicType ]
+    BasicType = "bool" /  "uint" / "sint" / "bstr" / "tstr"
+    SimpleTupleType = [ "tuple", *BasicType ]
 
 In other words, a SimpleVal is either an non-compound base value, or is
 a tuple of such values.
 
-We encode these operations as:
-
+    ; We encode these operations as:
     SimpleOp = IntMedianOp / ModeOp / FirstWithOp / LastWithOp /
         BitThresholdOp / NoneOp
 
@@ -250,8 +251,7 @@ We encode these operations as:
 
 _Parameters_: MIN_VOTES (an integer)
 
-Encoding:
-
+    ; Encoding:
     IntMedianOp = { op : "IntMedian", min : IntOpArgument }
 
 Discard all non-integer votes.  If there are fewer than MIN_VOTES
@@ -270,9 +270,10 @@ The IntMedian of the votes ["String", 77, 9, 22, "String", 3] is 9.
 _Parameters_: `MIN_COUNT` (an integer), `BREAK_TIES_LOW` (a boolean),
 `TYPE` (a SimpleType)
 
+    ; Encoding:
     ModeOp = { op : "Mode",
                min : IntOpArgument,
-               tie_low : boolean,
+               tie_low : bool,
                type : SimpleType
     }
 
@@ -290,7 +291,8 @@ and in favor of higher values of `BREAK_TIES_LOW` is false.
 
 _Parameters_: `MIN_COUNT` (an integer), `TYPE` (a SimpleType)
 
-    ModeOp = { op : "FirstWith",
+    ; Encdoding
+    FirstWithOp = { op : "FirstWith",
                min : IntOpArgument,
                type : SimpleType
     }
@@ -301,7 +303,8 @@ least MIN_COUNT votes.
 
 #### LastWith
 
-    ModeOp = { op : "LastWith",
+    ; Encoding
+    LastWithOp = { op : "LastWith",
                min : IntOpArgument,
                type : SimpleType
     }
@@ -313,7 +316,8 @@ MIN_COUNT votes.
 
 Parameters: `LowerBound` (an integer >= 1)
 
-    ModeOp = { op : "BitThreshold",
+    ; Encoding
+    BitThresholdOp = { op : "BitThreshold",
                lb : IntOpArgument,
     }
 
@@ -330,13 +334,15 @@ b'th bit is set in at least `LowerBound` of the votes.
 
 These operations work on lists of SimpleVal:
 
+    ; List type definitions
     ListVal = [ * SimpleVal ]
 
-    ListType = [ b"list",
+    ListType = [ "list",
                  [ *SimpleType ] / nil ]
 
 They are encoded as:
 
+    ; Only one list operation exists right now.
     ListOp = SetJoinOp
 
 #### SetJoin
@@ -344,7 +350,7 @@ They are encoded as:
 Parameters: `LowBound` (an integer >= 1).
 Optional parameters: `TYPE` (a SimpleType.)
 
-Encoding:
+    ; Encoding:
     SetJoinOp = {
        op : "SetJoin",
        lb : IntOpArgument,
@@ -368,15 +374,17 @@ member.)
 Map voting operations work over maps from key types to other non-map
 types.
 
+    ; Map type definitions.
     MapVal = { * SimpleVal => ItemVal }
     ItemVal = ListVal / SimpleVal
 
-    MapType = [ b"map", [ *SimpleType ] / nil, [ *ItemType ] / nil ]
+    MapType = [ "map", [ *SimpleType ] / nil, [ *ItemType ] / nil ]
     ItemType = ListType / SimpleType
 
 They are encoded as:
 
-    MapOp = MapJoinOp / MergeDerivedOp
+    ; MapOp encodics
+    MapOp = MapJoinOp / StructJoinOp
 
 #### MapJoin
 
@@ -387,6 +395,7 @@ Parameters:
 
 Encoding:
 
+    ; MapJoin operation encoding
     MapJoinOp = {
        op : "MapJoin"
        key : SimpleType,
@@ -466,8 +475,12 @@ are to be formatted.
     ]
 
     VoteContent = {
-       ; List of supportd consensus methods.
-       consensus-methods : [ + uint ],
+        ; List of supportd consensus methods.
+        consensus-methods : [ + uint ],
+
+        ; Text-based legacy vote to be used if the negotiated
+        ; consensus method is too old.  It should itself be signed.
+        ? legacy-vote : [ tstr ],
 
         ; How should the votes within the individual sections be
         ; computed?
@@ -484,11 +497,11 @@ are to be formatted.
         ; Fields that appear in the client root document.
         client-root : RootSection .within VoteableSection,
         ; Fields that appear in the server root document.
-        server-root : RootSection .with VoteableSection,
+        server-root : RootSection .within VoteableSection,
         ; Information about each relay.
         relays : RelaySection,
         ; Information about indices.
-        indices : IndexSection, 
+        indices : IndexSection,
 
         * tstr => any
     }
@@ -546,7 +559,7 @@ are to be formatted.
        ? cur-shared-rand : [ reveals : uint, rand : bstr ],
        ? prev-shared-rand : [ reveals : uint, rand : bstr ],
        ; extensions.
-       * tstr => Voteable
+       * VoteableStructKey => VoteableValue,
     };
 
     SRCommit = [
@@ -562,7 +575,7 @@ are to be formatted.
        ? require-protos : ProtoVersions,
        ? recommend-protos : ProtoVersions,
        ? params : NetParams,
-       * tstr => Voteable
+       * VoteableStructKey => VoteableValue,
     }
 
     ; A NoteSection is used to convey information about the voter and
@@ -575,45 +588,21 @@ are to be formatted.
        ; Headers from the bandwidth file that the
        ? bw-file-headers : {tstr => any },
        ? shared-rand-commit : SRCommit,
-       * tstr => any
+       * VoteableStructKey => VoteableValue,
     }
 
     RelaySection = {
        * bstr => RelayInfo,
     }
 
-    RelayInfo = [
+    RelayInfo = {
        meta : RelayMetaInfo .within VoteableSection,
        snip : RelaySNIPInfo .within VoteableSection,
-       ? legacy : RelayLegacyInfo  .within VoteableSection,,
     }
 
     ; XXXXXX
-    RelayMetaInfo = nil
-    RelaySNIPInfo = SNIPRouterData ; XXXX does this fit?
-
-    ; XXXXX xxx i'm probably missing something here.
-    RelayLegacyInfo = {
-       nickname : tstr,
-       flags : [ + tstr ],
-       desc_digest : bstr,
-       ? md_digests : [ + MDDigest ],
-       ? md_literal : LiteralMD,
-       published : tstr,
-       protovers : ProtoVersions,
-       ? ipv4-orport : [ bstr, uint ],
-       ? ipv6-orport : [ bstr, uint ],
-       ? dirport : uint,
-       ? policy-summary : [ + tstr ],
-       ? version : tstr,
-       ? measured_weight : uint,
-       ? unmeasured_weight : uint,
-       * tstr => any,
-    }
-
-    LiteralMD = [ * MDLine ]
-    MDLine = [ * MDLineElement ]
-    MDLineElement = tstr / bstr   ;  xxxx tag bstr as hex or base64
+    RelayMetaInfo = { }
+    RelaySNIPInfo = SNIPRouterData ; XXXX does this fit?  Have a transform?
 
     MDDigest = [
        low : uint,
@@ -631,7 +620,8 @@ are to be formatted.
      }
 
      SectionRules = {
-        * VoteableKey => VotingOp
+         * VoteableStructKey => VotingOp,
+         ? nil => VotingOp
      }
 
      VotingOp = MapOp / ListOp / SimpleOp / UnknownOp
@@ -644,7 +634,6 @@ are to be formatted.
      RelayRules = {
          meta : SectionRules,
          snip : SectionRules,
-         legacy : SectionRules,
      }
 
 ## Computing a consensus.
@@ -690,14 +679,33 @@ RelayRules element of VotingRules.
 Finally, the authorities transform the resulting sections into an
 ENDIVE and a legacy consensus.
 
-## Deriving older vote formats.
+To vote on a single VotingSection, find the corresponding
+SectionRules objects in the VotingRules of this votes.  For every
+key in the SectionRules, if at least QUORUM_AUTH authorities list
+the same operation for it, then use that operation to calculate the
+consensus for the value, and associate the key with the value.
+Otherwise, if at least `QUORUM_AUTH` authorities list the same
+operation for `nil`, then use that operation instead.  Otherwise, do
+not include the key in the consensus.
 
-The data included in a VoteDocument can be used to reconstruct the
-same data that would be present in a legacy vote, and therefore can
-be used to compute legacy consensus documents for as long as they may
-be needed.  Here we describe how to compute these contents.
-XXXX
-xxx
+## If an older consensus method is negotiated (Transitional)
+
+The `legacy-vote` field in the vote document contains an older (v3,
+text-style) consensus vote, and is used when an older consensus
+method is negotiated.  The legacy-vote is encoded by splitting it
+into pieces, to help with diff calculation.  Authorities MAY split at
+line boundaries, space boundaries, or anywhere that will help with
+diffs.   To reconstruct the legacy vote, concatenate the members of
+`legacy-vote` in order.  The resulting string MUST validate
+according to the rules of the legacy voting algorithm.
+
+If a legacy vote is present, then authorities SHOULD include the
+same view of the network in the legacy vote as they included in their
+real vote.
+
+If a legacy vote is present, then authorities MUST Authorities MUST
+list the same list of consensus-methods and the same voting
+schedule in both votes.  Authorities MUST reject noncompliant votes.
 
 ## Computing an ENDIVE.
 
@@ -734,6 +742,9 @@ all tags in that set, you get multiplied by the weight.  allow
 multiple possible source probabilities.
 
 xxx oh hey that might work!
+
+## Computing new consensus
+
 
 ## Bandwidth analysis
 

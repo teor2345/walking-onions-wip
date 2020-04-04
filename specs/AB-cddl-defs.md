@@ -70,6 +70,6 @@
        VotingCert : 0x12,
        ; XXXX these are designed not to collide with the "list of certificate
        ; types" in cert-spec.txt.
-    );
+    )
 
-    LinkSpecifier = bstr;
+    LinkSpecifier = bstr
