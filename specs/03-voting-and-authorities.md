@@ -637,9 +637,16 @@ are to be formatted.
        snip : RelaySNIPInfo .within VoteableSection,
     }
 
-    ; XXXXXX
-    RelayMetaInfo = { }
-    RelaySNIPInfo = SNIPRouterData ; XXXX does this fit?  Have a transform?
+    ; Information about a relay that doesn't go into a SNIP.
+    RelayMetaInfo = {
+        ; Tuple of published-time and descriptor digest.
+        desc : [ uint , bstr ],
+        ; What flags are assigned to this relay?
+        flags : [ *tstr ],
+        ; 
+    }
+    ; SNIP information can just be voted on.
+    RelaySNIPInfo = SNIPRouterData
 
     MDDigest = [
        low : uint,
