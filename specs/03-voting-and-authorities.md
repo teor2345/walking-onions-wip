@@ -417,6 +417,13 @@ produced by the voting operation.
 
 #### StructJoin
 
+A StructJoinOp operation describes a way to vote on maps that encode a
+structure-like object.
+
+Parameters:
+    `key_rules` (a map from int or string to StructItemOp)
+    `unknown_rule` (An operation to apply to unrecognized keys.)
+
     ; Encoding
     StructItemOp = ListOp / SimpleOp / MapJoinOp / DerivedItemOp
 
@@ -430,31 +437,69 @@ produced by the voting operation.
         ? unknown_rule : StructItemOp
     }
 
-> xxxx write this up better, but the idea is that for each key, you
-> apply the given StructItemOp.
+To apply a StructJoinOp to a set of votes, first discard every vote that is
+not a map.  Then consider the set of keys from all the votes as a single
+list, with duplicates removed.  Also remove all entries that are not integers
+or strings from the list of keys.
+
+For each key, then look for that key in the key_rules map.  If there is an
+entry, then apply the StructItemOp for that entry to the values for that key
+in every vote.  Otherwise, apply the `unknown_rule` operation to the values
+for that key in every vote.  Otherwise, there is no consensus for the values
+of this key.  If there _is_ a consensus for the values, then the key should
+map to that consensus in the result.
+
+This operation always reaches a consensus, even if it is an empty map.
+
 
 #### DerivedFromField
 
-    ;Encoding
+This operation can only occur within a StructJoinOp operation. It indicates
+that one field should have been derived from another.  It can be used, for
+example, to say that a relay's version is "derived from" a relay's descriptor
+digest.
+
+Unlike other operations, this one depends on the entire consensus (as
+computed so far), and on the entirety of the set of votes.
+
+> This operation might be a mistake, but we need it to continue lots of
+> our current behavior.
+
+Parameters:
+    `Fields` (one or more other locations in the vote)
+
+Encoding
+    ; This item is "derived from" some other field.
     DerivedItemOp = {
         op : "DerivedFrom",
         fields : [ +SourceField ]
+        rule : SimpleOp
     }
 
+    ; A field in the vote.
     SourceField = [ FieldSource, VoteableStructKey ]
-    FieldSource = "M" ; Meta
-               / "CR" ; ClientRoot
+
+    ; A location in the vote.  Each location here can only occur
+    ; be referenced from later locations, or from itself.
+    FieldSource = "M" ; Meta.
+               / "CR" ; ClientRoot.
                / "SR" ; ServerRoot
                / "RM" ; Relay-meta
                / "RL" ; Relay-legacy
                / "RS" ; Relay-SNIP
 
-> xxxx write this up better, but the idea is that this field is
-> derived from some other field, and so we should take the vote on
-> _that_ field, and then look at the votes on this field which
-> should be the same for everybody who voted on that field 'right'.
->
-> Most stuff for relays is derived from published / relay-digest.
+To compute a consensus with this operation, first locate each field described
+in the SourceField entry in each VoteDocument (if present), and in the
+consensus computed so far.  If there is no such field in the consensus, then
+this operation produces "no consensus".  Otherwise, discard the VoteDocuments
+do not have the same value for the field as the consensus, and their
+corresponding votes for this field.  Do this for every listed field.
+
+At this point, we have a set of votes for this field's value that all come
+from VoteDocuments that describe the same value for the source field.  Apply
+the `rule` operation to those votes in order to give the result for this
+voting operation.
+
 
 ## A CBOR-based metaformat for votes.
 
