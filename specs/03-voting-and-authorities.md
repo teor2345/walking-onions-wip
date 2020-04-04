@@ -170,39 +170,17 @@ CEIL( (N_x * 2 + 1) / 3 )
 
 Each voting operation will either produce a CBOR output, or produce
 no consensus.  Unless otherwise stated, all CBOR outputs are to be
-given in canonical form.  To compute the consensus for a field, the
-authorities follow this algorithm:
-
-    Algorithm: CONSENSUS(OPERATION-VOTES, VOTES)
-
-    (Computes a consensus on a field, given that the authorities
-    casting votes have specified the voting operations in
-    OPERATION-VOTES, and the authorities casting votes for this
-    field)
-
-    Requires: LEN(VOTES) <= LEN(OPERATION-VOTES).
-    Requires: LEN(OPERATION-VOTES) <= N_PRESENT
-
-    Identity the most frequent member OP of OPERATION-VOTES.  (Two
-    members are the same iff they have exactly the same operation
-    and parameters.)  If there is no unique most frequent member,
-    return "no consensus" for this field.
-
-    Let OP_COUNT = the number of times that OP appears in
-    OPERATION-VOTES.
-
-    If OP < QUORUM_AUTH, return "No consensus" for this field.
-
-    Otherwise, invoke the operation specified by OP over the
-    provided VOTES.
-
-In other words, there is only a consensus for a field if more than
-half of the total authorities agree how to vote on that field.
+given in canonical form.
 
 Below we specify a number of operations, and the parameters that
 they take.  We begin with operations that apply to "simple" values
 (integers and binary strings), then show how to compose them to
 larger values.
+
+All of the descriptions below show how to apply a _single_ voting
+operation to a set of votes.  We will later describe how to behave when
+the authorities do not agree on which voting operation to use, in our
+discussion of the StructJoinOp operation.
 
 Note that while some voting operations take other operations as
 parameters, we are _not_ supporting full recursion here: there is a
@@ -451,6 +429,20 @@ map to that consensus in the result.
 
 This operation always reaches a consensus, even if it is an empty map.
 
+*Merging*: It is possible to "_merge_" a set of StructJoinOp operations from
+different authorities into a single StructJoinOp.  To do so, for each
+key, consider whether at least QUORUM_AUTH authorities have voted voted the
+same StructItemOp.  If so, that StructItemOp is the resulting operation
+for this key.  Otherwise, there is no entry for this key.
+
+Do the same for the StructItemOp for the unknown_key.
+
+Note that this operation is not recursive, since a StructJoinOp cannot
+contain a StructJoinOp.
+
+Note that this operation does not happen "automatically" whenever a
+StructJoinOp is given, but only when we say it that we are merging a set
+of StructJoinOps.
 
 #### DerivedFromField
 
@@ -664,10 +656,7 @@ are to be formatted.
         indices : SectionRules,
      }
 
-     SectionRules = {
-         * VoteableStructKey => VotingOp,
-         ? nil => VotingOp
-     }
+     SectionRules = StructJoinOp
 
      VotingOp = MapOp / ListOp / SimpleOp / UnknownOp
 
