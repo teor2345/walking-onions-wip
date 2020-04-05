@@ -477,8 +477,8 @@ Encoding
                / "CR" ; ClientRoot.
                / "SR" ; ServerRoot
                / "RM" ; Relay-meta
-               / "RL" ; Relay-legacy
                / "RS" ; Relay-SNIP
+               / "RL" ; Relay-legacy
 
 To compute a consensus with this operation, first locate each field described
 in the SourceField entry in each VoteDocument (if present), and in the
@@ -573,7 +573,7 @@ are to be formatted.
         IndexId => [ * IndexRule ],
     }
 
-    IndexRule = int / tstr
+    IndexRule = tstr
 
     VoteableValue =  MapVal / ListVal / SimpleVal
     VoteableSection = {
@@ -635,18 +635,26 @@ are to be formatted.
     RelayInfo = {
        meta : RelayMetaInfo .within VoteableSection,
        snip : RelaySNIPInfo .within VoteableSection,
+       legacy : RelayLegacyInfo .within VoteableSection,
     }
 
     ; Information about a relay that doesn't go into a SNIP.
     RelayMetaInfo = {
         ; Tuple of published-time and descriptor digest.
-        desc : [ uint , bstr ],
+        ? desc : [ uint , bstr ],
         ; What flags are assigned to this relay?
-        flags : [ *tstr ],
-        ; 
+        ? flags : [ *tstr ],
+        ; self-declared bandwidth.
+        ? bw : uint,
+        ; measured bandwidth.
+        ? mbw : uint,
     }
     ; SNIP information can just be voted on.
     RelaySNIPInfo = SNIPRouterData
+
+    RelayLegacyInfo = {
+       ? mds : [ *MDDigest ]
+    }
 
     MDDigest = [
        low : uint,
@@ -661,21 +669,26 @@ are to be formatted.
         root : SectionRules,
         relay : RelayRules,
         indices : SectionRules,
-     }
+    }
 
-     SectionRules = StructJoinOp
+    ; We give a separate name here to indicate the fact that _these_
+    ; StructJoinOps get merged.  (These are the only StructJoinOps that
+    ; can exist right now, but we may want to have a distinction in the
+    ; future.)
+    SectionRules = StructJoinOp
 
-     VotingOp = MapOp / ListOp / SimpleOp / UnknownOp
+    VotingOp = MapOp / ListOp / SimpleOp / UnknownOp
 
-     UnknownOp = {
-         op : tstr,
-         * tstr => any
-     }
+    UnknownOp = {
+        op : tstr,
+        * tstr => any
+    }
 
-     RelayRules = {
-         meta : SectionRules,
-         snip : SectionRules,
-     }
+    RelayRules = {
+        meta : SectionRules,
+        snip : SectionRules,
+        legacy : SectionRules,
+    }
 
 ## Computing a consensus.
 
@@ -718,7 +731,8 @@ which is done slightly differently, according to the rules of
 RelayRules element of VotingRules.
 
 Finally, the authorities transform the resulting sections into an
-ENDIVE and a legacy consensus.
+ENDIVE and a legacy consensus, as in "Computing an Endive" and
+"Computing a legacy consensus" below.
 
 To vote on a single VotingSection, find the corresponding
 SectionRules objects in the VotingRules of this votes.  For every
@@ -728,6 +742,7 @@ consensus for the value, and associate the key with the value.
 Otherwise, if at least `QUORUM_AUTH` authorities list the same
 operation for `nil`, then use that operation instead.  Otherwise, do
 not include the key in the consensus.
+
 
 ## If an older consensus method is negotiated (Transitional)
 
@@ -750,25 +765,43 @@ schedule in both votes.  Authorities MUST reject noncompliant votes.
 
 ## Computing an ENDIVE.
 
-xxx main idea here: decide what to include by voting on
-sniprouterdata as we do on microdescriptors.  seems to provide easy
-migration.
+> XXXX This is a sketch, not a complete specification.  I'll have to
+> come back here once I've been through a revision on all the other
+> design pieces.
 
-xxx alternative: vote on individual fields?
+If a consensus-method is negotiated that is high enough to support
+ENDIVEs, then the authorities proceed as follows.
 
-xxx give flags similar to how we do now
+The RootSections are used verbatim as the bodies of the client-root-doc
+and relay-root-doc fields.
 
-xxx define indices in terms of weights and flags
+The fields that appear in each RelaySNIPInfo determine what goes into
+the SNIPRouterData for each relay.  Extra fields may be copied from the
+Meta section into the ENDIVERouterData depending on the meta
+document. (XXXX spec this)
 
-xxx weighting tweaks for different roles: ouch.  can anything be
-done to make the complicated pile of formulas easier?  or do
-authorities need to keep computing that ** post-vote** and feeding
-it into the index calculations?  The post-vote part is what makes it
-ugly here. If we could just have the vote do a median or something
-we'd be in much better shape.
+The sig_params section is derived from fields in the meta
+section. (XXXX spec this)
 
-xxx could investigate if medians would work earlier based on formulas
-and historical data?
+Indices are built according to named IndexRules, and grouped accoring to
+fields in the meta section. (XXXX spec this once we know what indices we
+need.)  Adding new IndexRule currently requires a new consensus-method.
+
+> XXXX Be explicit about lifespans in the vote and how they determine the
+> lifespan of the legacy consensus, the lifespan of the ENDIVE, and the
+> lifespan of the SNIPs.
+
+
+## Computing a legacy consensus.
+
+> XXXX This is a point where I will need to come back once we have all
+> the fields in the SNIPs and the votes straightened out, and specify
+> each and every field.  The main idea here is that we should be able to
+> define a not too hard deterministic transformation from the consensus
+> fields to the body of a legacy consensus.  That means that every
+> field that goes into a legacy consensus needs to occur _somewhere_.
+> The RelayLegacyInfo section can _only_ be used for making legacy
+> consensuses.
 
 ## Managing indices over time.
 
