@@ -1,0 +1,131 @@
+Walking Onions: week 4 update
+
+ On our current grant from the zcash foundation, I'm working on a
+full specification for the Walking Onions design.  I'm going to try to
+send out these updates once a week.
+
+My previous updates are linked below:
+
+ Week 1:
+   formats, preliminaries, git repositories, binary diffs,
+   metaformat decisions, and Merkle Tree trickery.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014178.html
+
+ Week 2:
+   Specifying details of SNIP and ENDIVE formats, in CDDL.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014181.html
+
+ Week 3:
+   Expanding ENDIVEs into SNIPs.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014194.html
+
+Week 4:
+   Voting (part 1) and extending circuits.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014207.html
+
+
+This week found me still rather distracted by fallout from current
+events and preparations for more isolation at home.  I didn't get a
+complete rewrite done.  But I do, however, think I figured out voting.
+
+== The big idea for voting
+
+Our current system for voting on relay properties is fairly piecemeal:
+every property has its own independent specification in dir-spec.txt
+[DIRSPEC], which can get kind of cumbersome.
+
+Every time we have a new property to specify, if it can't be defined as
+a flag, we need to define a new consensus method that puts it in the
+consensus or the microdescriptors.  Until authorities have upgraded to
+support the new method, they can't sign consensuses generated with it,
+since they don't know how those consensuses are generated.
+
+We can solve both problems by defining "vote tabulation" as a set of
+parameterized operations operating over a set of CBOR inputs.
+Individual operations can be simple, like "Take the median of all
+integer votes", or progressively more complex.
+
+What's more, we can specify these voting operations themselves as data,
+which gives us more advantages: First, that we no longer need
+independent English-language specs for each field in the consensus--and
+second, that we can introduce new voting rules or change the existing
+ones without adding new code.  As long as a quorum of authorities agree
+about the rules for voting on some field, the other authorities can
+safely follow those rules, and include the new field in the consensus
+ENDIVE and SNIPs.  We would only need to introduce new consensus methods
+when we wanted to introduce support for an entirely new operation.
+
+After voting is done, some transformations are needed to transform the
+objects it produces.  SNIP signatures need to be signed, indexes built,
+and so on.  I've left this unspecified for now, since I am likely to
+return to the SNIP and ENDIVE formats again in the coming weeks, and
+I'll want to tweak the transformation quite a lot.
+
+This is not something I would want to implement in C.  Rust would be a
+better fit -- or some functional language.  Fortunately, only
+authorities need to follow this algorithm.
+
+I have initial specifications written for these operations that I
+believe are sufficient (or nearly so?) for all the things that we do in
+voting now.  These are in the draft voting spec as it stands [VOTING].
+I expect that they are full of errors, but I wouldn't be too concerned
+right now; I'm going to need to do another pass over them, but I want to
+return to voting a bit later (see below) once I have more SNIP uses
+specified.
+
+== Backward compatibility in voting
+
+There are two separate backward compatibility issues in voting.
+
+The first issue is easier: how to operate when we aren't sure whether
+all the authorities have upgraded to support this new voting format.
+For this purpose, I'm including legacy votes as part of the new vote
+format, signatures and all.  This will make the new votes bigger until
+all the authorities have definitely upgraded, but other changes (voting
+diffs and compression) should offset this risk.  We can stop sending
+legacy votes when everybody has upgraded.
+
+(I thought about having an "implicit version" of each legacy vote
+derived from the new vote, but that seemed riskier, and like it would
+involve lots more new code of dubious benefit.)
+
+The second issue is a bit harder: for clients that haven't upgraded to
+walking onions, we'll need to generate legacy consensus documents for a
+some time.  This doesn't need to follow exactly the same rules as
+consensus voting uses today:  instead we should have legacy consensus
+documents derived from the CBOR consensus, so that we only need to
+maintain one voting algorithm long term.
+
+I've left this part unspecified for now too; I'll be comping back to it
+after a round of revisions and SNIP usage design.
+
+== Next steps
+
+I plan to spend the first part of week going over what I've written so
+far and trying to make it correct and consistent, and to fill in the
+baps that I have.  After that, I'm planning to write the example sections
+for how circuit extension works.  If time remains, this is when I
+finally move on to section 6 of the proposal, which will be pretty
+involved -- I've got to explain how to implement all (or most?) of our
+current client behavior using walking onions, and what that implies
+about the set of indexes and fields in our documents.
+
+== Other updates
+
+Our paper got into USENIX Security 2020!  (This is the paper about
+Walking Onions that Chelsea Komlo and Ian Goldberg wrote with me.  It
+has basically the same content as our existing tech report [TECHREPORT].)
+The conference is scheduled in mid-August, in Boston: we'll see whether
+people are gathering in groups by then.  If not, I imagine we'll be
+putting together some kind of video.
+
+[DIRSPEC] https://gitweb.torproject.org/torspec.git/tree/dir-spec.txt
+
+[TECHREPORT] https://crysp.uwaterloo.ca/software/walkingonions/
+
+[VOTING] https://github.com/nmathewson/walking-onions-wip/blob/master/specs/03-voting-and-authorities.md
+
