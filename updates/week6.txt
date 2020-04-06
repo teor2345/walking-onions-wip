@@ -1,0 +1,34 @@
+Walking Onions: week 6 update
+
+ On our current grant from the zcash foundation, I'm working on a
+full specification for the Walking Onions design.  I'm going to try to
+send out these updates once a week.
+
+My previous updates are linked below:
+
+ Week 1:
+   formats, preliminaries, git repositories, binary diffs,
+   metaformat decisions, and Merkle Tree trickery.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014178.html
+
+ Week 2:
+   Specifying details of SNIP and ENDIVE formats, in CDDL.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014181.html
+
+ Week 3:
+   Expanding ENDIVEs into SNIPs.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014194.html
+
+Week 4:
+   Voting (part 1) and extending circuits.
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-March/014207.html
+
+Week 5:
+   Voting (part 2)
+
+   https://lists.torproject.org/pipermail/tor-dev/2020-April/014218.html
+

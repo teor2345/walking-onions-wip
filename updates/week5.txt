@@ -1,4 +1,4 @@
-Walking Onions: week 4 update
+Walking Onions: week 5 update
 
  On our current grant from the zcash foundation, I'm working on a
 full specification for the Walking Onions design.  I'm going to try to
