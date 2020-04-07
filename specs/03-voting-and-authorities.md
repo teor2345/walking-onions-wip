@@ -141,18 +141,18 @@ on a field unless you've cast a vote, and you can't cast a vote
 unless you're an authority.
 
 `QUORUM_AUTH` -- The lowest integer that is greater than half of
-`N_AUTH`.  Equivalent to CEIL( (N_AUTH+1)/2 ).
+`N_AUTH`.  Equivalent to TRUNC( (N_AUTH+1)/2 ) + 1.
 
 `QUORUM_PRESENT` -- The lowest integer that is greater than half of
-`N_PRESENT`.  Equivalent to CEIL( (N_PRESENT+1)/2 ).
+`N_PRESENT`.  Equivalent to TRUNC( (N_PRESENT+1)/2 ) + 1.
 
 `QUORUM_FIELD` -- The lowest integer that is greater than half of
-`N_FIELD`.  Equivalent to CEIL( (N_PRESENT+1)/2 ).
+`N_FIELD`.  Equivalent to TRUNC( (N_PRESENT+1)/2 ) + 1.
 
 We define `SUPERQUORUM_`..., variants of these fields as well, based
 on the lowest integer that is greater than 2/3 majority of the
 underlying field.  `SUPERQUORUM_x` is thus equivalent to
-CEIL( (N_x * 2 + 1) / 3 )
+TRUNC( (N_x * 2 + 2) / 3 ) + 1
 
     ; We need to encode these arguments; we do so as short strings.
     IntOpArgument = uint / "auth" / "present" / "field" /
@@ -165,6 +165,9 @@ CEIL( (N_x * 2 + 1) / 3 )
 > Alternatively, we could formulate QUORUM_x as CEIL( x / 2 + epsilon )
 > and SUPERQUORUM_x as CEIL( x * 2/3 + epsilon), for epsilon being a
 > tiny positive number.  Is that better?
+> 
+> teor says: seems error-prone. Let's try to do these calcuations
+> without using floating point?
 
 ### Producing consensus on a field
 
