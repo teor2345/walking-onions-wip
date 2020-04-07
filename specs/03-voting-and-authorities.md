@@ -225,23 +225,29 @@ a tuple of such values.
     SimpleOp = IntMedianOp / ModeOp / FirstWithOp / LastWithOp /
         BitThresholdOp / NoneOp
 
-#### IntMedian
+#### Median
 
-_Parameters_: MIN_VOTES (an integer)
+_Parameters_: `MIN_VOTES` (an integer), `BREAK_EVEN_LOW` (a boolean),
+`TYPE` (a SimpleType)
 
     ; Encoding:
-    IntMedianOp = { op : "IntMedian", min : IntOpArgument }
+    MedianOp = { op : "Median",
+                 min_vote : IntOpArgument,
+                 even_low : bool,
+                 type : SimpleType  }
 
-Discard all non-integer votes.  If there are fewer than MIN_VOTES
-votes remaining, return "no consensus".
+Discard all votes that are not of the specified `TYPE`. If there are
+fewer than `MIN_VOTES` votes remaining, return "no consensus".
 
 Put the votes in ascending sorted order.  If the number of votes N
 is odd, take the center vote (the one at position (N+1)/2).  If N is
 even, take the lower of the two center votes (the one at position
-N/2).
+N/2) if `BREAK_EVEN_LOW` is true. Otherwise, take the higher of the
+two center votes (the one at position N/2 + 1).
 
-For example, the IntMedian of the votes ["String", 2, 111, 6] is 6.
-The IntMedian of the votes ["String", 77, 9, 22, "String", 3] is 9.
+For example, the Median(…, even_low: True, type: "uint") of the votes
+["String", 2, 111, 6] is 6. The Median(…, even_low: True, type: "uint")
+of the votes ["String", 77, 9, 22, "String", 3] is 9.
 
 #### Mode
 
@@ -250,14 +256,14 @@ _Parameters_: `MIN_COUNT` (an integer), `BREAK_TIES_LOW` (a boolean),
 
     ; Encoding:
     ModeOp = { op : "Mode",
-               min : IntOpArgument,
+               min_count : IntOpArgument,
                tie_low : bool,
                type : SimpleType
     }
 
-Discard all votes that are not of the specified type.  Of the
+Discard all votes that are not of the specified `TYPE`.  Of the
 remaining votes, look for the value that has received the most
-votes.  If no value has received at least `MIN_COUNTS` votes, then
+votes.  If no value has received at least `MIN_COUNT` votes, then
 return "no consensus".
 
 If there is a single value that has received the most votes, return
@@ -265,38 +271,33 @@ it. Break ties in favor of lower values if `BREAK_TIES_LOW` is true,
 and in favor of higher values of `BREAK_TIES_LOW` is false.
 (Perform comparisons in canonical cbor order.)
 
-#### FirstWith
+#### FirstThreshold
 
-_Parameters_: `MIN_COUNT` (an integer), `TYPE` (a SimpleType)
+_Parameters_: `MIN_COUNT` (an integer), `BREAK_MULTI_LOW` (a boolean),
+`TYPE` (a SimpleType)
 
     ; Encdoding
-    FirstWithOp = { op : "FirstWith",
-               min : IntOpArgument,
-               type : SimpleType
+    FirstThresholdOp = { op : "FirstThreshold",
+                         min_count : IntOpArgument,
+                         multi_low: bool,
+                         type : SimpleType
     }
 
-Discard all votes that are not of the specified TYPE.  Sort in
-canonical cbor order.  Return the first element that received at
-least MIN_COUNT votes.
+Discard all votes that are not of the specified `TYPE`.  Sort in
+canonical cbor order.  If `BREAK_MULTI_LOW` is false, reverse the
+order of the list.
 
-#### LastWith
-
-    ; Encoding
-    LastWithOp = { op : "LastWith",
-               min : IntOpArgument,
-               type : SimpleType
-    }
-
-As FirstWith, but return the last element that received at least
-MIN_COUNT votes.
+Return the first element that received at least `MIN_COUNT` votes.
+If no value has received at least `MIN_COUNT` votes, then return
+"no consensus".
 
 #### BitThreshold
 
-Parameters: `LowerBound` (an integer >= 1)
+Parameters: `MIN_COUNT` (an integer >= 1)
 
     ; Encoding
     BitThresholdOp = { op : "BitThreshold",
-               lb : IntOpArgument,
+                       min_count : IntOpArgument,
     }
 
 These are usually not needed, but are quite useful for
@@ -306,7 +307,7 @@ Discard all votes that are not of type uint or bstr; construe bstr
 inputs as having type "biguint".
 
 The output is a uint or biguint in which the b'th bit is set iff the
-b'th bit is set in at least `LowerBound` of the votes.
+b'th bit is set in at least `MIN_COUNT` of the votes.
 
 ### Voting operations for lists
 
@@ -325,13 +326,13 @@ They are encoded as:
 
 #### SetJoin
 
-Parameters: `LowBound` (an integer >= 1).
+Parameters: `MIN_COUNT` (an integer >= 1).
 Optional parameters: `TYPE` (a SimpleType.)
 
     ; Encoding:
     SetJoinOp = {
        op : "SetJoin",
-       lb : IntOpArgument,
+       min_count : IntOpArgument,
        ? type : SimpleType
     }
 
@@ -339,7 +340,7 @@ Discard all votes that are not lists.  From each vote,
 discard all members that are not of type 'TYPE'.
 
 For the consensus, construct a new list containing exactly those
-elements that appears in at least `LowerBound` votes.
+elements that appears in at least `MIN_COUNT` votes.
 
 (Note that the input votes may contain duplicate elements.  These
 must be treated as if there were no duplicates: the vote
@@ -367,23 +368,23 @@ They are encoded as:
 #### MapJoin
 
 Parameters:
-   `KeyLowBound` (an integer >= 1)
-   `KeyType` (a SimpleType type)
-   `ItemOperation` (A non-MapJoin voting operation)
+   `KEY_MIN_COUNT` (an integer >= 1)
+   `KEY_TYPE` (a SimpleType type)
+   `ITEM_OP` (A non-MapJoin voting operation)
 
 Encoding:
 
     ; MapJoin operation encoding
     MapJoinOp = {
        op : "MapJoin"
-       key : SimpleType,
-       keylb : IntOpArgument,
-       item-op : ListOp / SimpleOp
+       key_min_count : IntOpArgument,
+       key_type : SimpleType,
+       item_op : ListOp / SimpleOp
     }
 
 First, discard all votes that are not maps.  Then consider the set
 of keys from each vote as if they were a list, and apply
-`SetJoin[KeyLowBound,KeyType]` to those lists.  The resulting list
+`SetJoin[KEY_MIN_COUNT,KEY_TYPE]` to those lists.  The resulting list
 is a set of keys to consider including in the output map.
 
 For each key in the output list, run the sub-voting operation
@@ -399,8 +400,8 @@ A StructJoinOp operation describes a way to vote on maps that encode a
 structure-like object.
 
 Parameters:
-    `key_rules` (a map from int or string to StructItemOp)
-    `unknown_rule` (An operation to apply to unrecognized keys.)
+    `KEY_RULES` (a map from int or string to StructItemOp)
+    `UNKNOWN_RULE` (An operation to apply to unrecognized keys.)
 
     ; Encoding
     StructItemOp = ListOp / SimpleOp / MapJoinOp / DerivedItemOp
@@ -420,14 +421,18 @@ not a map.  Then consider the set of keys from all the votes as a single
 list, with duplicates removed.  Also remove all entries that are not integers
 or strings from the list of keys.
 
-For each key, then look for that key in the key_rules map.  If there is an
+For each key, then look for that key in the `KEY_RULES` map.  If there is an
 entry, then apply the StructItemOp for that entry to the values for that key
-in every vote.  Otherwise, apply the `unknown_rule` operation to the values
+in every vote.  Otherwise, apply the `UNKNOWN_RULE` operation to the values
 for that key in every vote.  Otherwise, there is no consensus for the values
 of this key.  If there _is_ a consensus for the values, then the key should
 map to that consensus in the result.
 
 This operation always reaches a consensus, even if it is an empty map.
+
+> teor says: can we make merging its own function, and call it conditionally,
+> based on a parameter to StructJoin?
+> Or can we give merged StructJoins a different name?
 
 *Merging*: It is possible to "_merge_" a set of StructJoinOp operations from
 different authorities into a single StructJoinOp.  To do so, for each
@@ -435,7 +440,7 @@ key, consider whether at least QUORUM_AUTH authorities have voted voted the
 same StructItemOp.  If so, that StructItemOp is the resulting operation
 for this key.  Otherwise, there is no entry for this key.
 
-Do the same for the StructItemOp for the unknown_key.
+Do the same for the StructItemOp for the `UNKNOWN_RULE`.
 
 Note that this operation is not recursive, since a StructJoinOp cannot
 contain a StructJoinOp.
@@ -458,7 +463,8 @@ computed so far), and on the entirety of the set of votes.
 > our current behavior.
 
 Parameters:
-    `Fields` (one or more other locations in the vote)
+    `FIELDS` (one or more other locations in the vote)
+    `RULE` (the rule used to combine values)
 
 Encoding
     ; This item is "derived from" some other field.
@@ -484,12 +490,12 @@ To compute a consensus with this operation, first locate each field described
 in the SourceField entry in each VoteDocument (if present), and in the
 consensus computed so far.  If there is no such field in the consensus, then
 this operation produces "no consensus".  Otherwise, discard the VoteDocuments
-do not have the same value for the field as the consensus, and their
+that do not have the same value for the field as the consensus, and their
 corresponding votes for this field.  Do this for every listed field.
 
 At this point, we have a set of votes for this field's value that all come
 from VoteDocuments that describe the same value for the source field.  Apply
-the `rule` operation to those votes in order to give the result for this
+the `RULE` operation to those votes in order to give the result for this
 voting operation.
 
 
